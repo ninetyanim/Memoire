@@ -1,0 +1,1810 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#1E1E22">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Memoire</title>
+<link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
+<style>
+:root{--bg:#1E1E22;--sidebar-bg:#18181E;--border:#2A2A32;--accent-light:#7878A0;--accent:#505078;--text-title:#E0E0F0;--text-body:#909098;--text-muted:#4A4A62;--tag:#8080A8;--today-bg:#505078;--card-bg:#23232A;--hover:#25252D;--fs-title:18px;--fs-subtitle:15px;--fs-body:14px;--fs-btn:13px;--fs-small:12px;}
+.theme-warm{--bg:#1E1A14;--sidebar-bg:#19160F;--border:#2C2318;--accent-light:#B8762A;--accent:#9A5E18;--text-title:#E8DEC4;--text-body:#988870;--text-muted:#60503C;--tag:#B8762A;--today-bg:#9A5E18;--card-bg:#232018;--hover:#272318;}
+.theme-teal{--bg:#181E20;--sidebar-bg:#131A1C;--border:#222E32;--accent-light:#3AA898;--accent:#1E7868;--text-title:#D8E8E4;--text-body:#6A8888;--text-muted:#3A5058;--tag:#3AA898;--today-bg:#1E7868;--card-bg:#1C2426;--hover:#1F2A2C;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;background:var(--bg);color:var(--text-title);font-size:var(--fs-body);height:100vh;overflow:hidden;}
+#app{display:flex;height:100vh;overflow:hidden;}
+
+#sidebar{width:210px;min-width:210px;background:var(--sidebar-bg);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;transition:width 0.2s,min-width 0.2s;}
+#sidebar.collapsed{width:0;min-width:0;border-right:none;}
+.sidebar-header{padding:12px 12px 8px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.app-name{font-size:var(--fs-subtitle);font-weight:600;color:var(--text-title);}
+.icon-btn{background:none;border:none;cursor:pointer;color:var(--text-muted);padding:3px 6px;border-radius:4px;font-size:var(--fs-btn);line-height:1;}
+.icon-btn:hover{color:var(--accent-light);}
+#calendar{padding:10px 8px 6px;flex-shrink:0;}
+.cal-nav{display:flex;align-items:center;gap:2px;margin-bottom:6px;}
+.cal-nav-selects{display:flex;gap:3px;flex:1;}
+.cal-nav-select-wrap{position:relative;display:inline-flex;align-items:center;}
+.cal-nav-select-wrap::after{content:'▾';position:absolute;right:4px;font-size:8px;color:var(--accent-light);pointer-events:none;}
+.cal-nav-select{background:var(--card-bg);border:1px solid var(--border);border-radius:4px;color:var(--text-body);font-size:var(--fs-small);padding:2px 16px 2px 6px;cursor:pointer;font-family:inherit;appearance:none;-webkit-appearance:none;width:100%;}
+.cal-nav-select:hover{border-color:var(--accent-light);color:var(--text-title);}
+.cal-nav-btn{background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:var(--fs-btn);padding:2px 4px;border-radius:3px;line-height:1;}
+.cal-nav-btn:hover{color:var(--text-title);}
+.cal-today-btn{background:none;border:1px solid var(--border);cursor:pointer;color:var(--accent-light);font-size:var(--fs-small);padding:1px 6px;border-radius:3px;font-family:inherit;white-space:nowrap;}
+.cal-today-btn:hover{border-color:var(--accent-light);}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;}
+.cal-dow{font-size:var(--fs-small);color:var(--text-muted);text-align:center;padding:1px 0 3px;}
+.cal-day{font-size:var(--fs-small);text-align:center;padding:3px 1px;border-radius:50%;cursor:pointer;color:var(--text-body);aspect-ratio:1;display:flex;align-items:center;justify-content:center;position:relative;transition:background 0.1s;}
+.cal-day:hover{background:var(--hover);}
+.cal-day.today{background:var(--today-bg);color:var(--text-title);font-weight:600;}
+.cal-day.has-entry::after{content:'';position:absolute;bottom:1px;left:50%;transform:translateX(-50%);width:3px;height:3px;border-radius:50%;background:var(--accent-light);}
+.cal-day.selected{outline:1.5px solid var(--accent-light);}
+.cal-day.other-month{opacity:0.35;}
+#search-wrap{padding:6px 10px;border-bottom:1px solid var(--border);flex-shrink:0;}
+#search-box{width:100%;background:var(--card-bg);border:1px solid var(--border);border-radius:5px;padding:5px 8px;font-size:var(--fs-small);color:var(--text-title);font-family:inherit;outline:none;transition:border-color 0.15s;}
+#search-box::placeholder{color:var(--text-muted);}
+#search-box:focus{border-color:var(--accent-light);}
+#entry-list{flex:1;overflow-y:auto;}
+.entry-item{padding:7px 12px;cursor:pointer;border-left:2px solid transparent;display:flex;align-items:center;gap:6px;transition:background 0.1s;}
+.entry-item:hover{background:var(--hover);}
+.entry-item.active{border-left-color:var(--accent-light);background:var(--hover);}
+.entry-item-text{flex:1;min-width:0;}
+.entry-date{font-size:var(--fs-small);color:var(--text-muted);margin-bottom:1px;}
+.entry-title-s{font-size:var(--fs-btn);color:var(--text-body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.entry-del{display:none;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:var(--fs-btn);padding:2px 4px;border-radius:3px;flex-shrink:0;}
+.entry-item:hover .entry-del{display:block;}
+.entry-del:hover{color:#c05050;}
+.sidebar-footer{padding:8px 12px;border-top:1px solid var(--border);display:flex;gap:5px;align-items:center;flex-shrink:0;}
+.theme-dot{width:12px;height:12px;border-radius:50%;cursor:pointer;border:1.5px solid transparent;}
+.theme-dot.active{border-color:var(--text-title);}
+
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
+.topbar{padding:8px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;background:var(--sidebar-bg);flex-shrink:0;}
+.toggle-btn{background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:var(--fs-subtitle);padding:2px 4px;border-radius:3px;line-height:1;}
+.toggle-btn:hover{color:var(--accent-light);}
+.topbar-title{font-size:var(--fs-subtitle);color:var(--text-body);flex:1;}
+.new-btn{background:var(--accent);border:none;border-radius:5px;padding:5px 14px;font-size:var(--fs-btn);color:var(--text-title);cursor:pointer;font-family:inherit;}
+.new-btn:hover{background:var(--accent-light);}
+
+#list-page{flex:1;overflow-y:auto;display:flex;flex-direction:column;}
+.list-month-group{margin-bottom:4px;}
+.list-month-label{font-size:var(--fs-subtitle);font-weight:600;color:var(--text-title);padding:10px 14px 8px;background:var(--sidebar-bg);letter-spacing:0.3px;position:sticky;top:0;z-index:1;}
+.list-cards-wrap{padding:6px 10px;display:flex;flex-direction:column;gap:6px;}
+.list-card{display:flex;background:var(--card-bg);border:1px solid var(--border);border-radius:7px;cursor:pointer;transition:background 0.1s;position:relative;overflow:hidden;}
+.list-card:hover{background:var(--hover);border-color:var(--accent-light);}
+.list-card-left{width:58px;flex-shrink:0;padding:12px 0 12px 12px;display:flex;flex-direction:column;align-items:center;}
+.list-card-dow{font-size:var(--fs-small);color:var(--text-muted);margin-bottom:2px;}
+.list-card-day{font-size:26px;font-weight:600;color:var(--accent-light);line-height:1;}
+.list-card-divider{width:1px;background:var(--border);margin:10px 0;flex-shrink:0;align-self:stretch;}
+.list-card-body{flex:1;padding:11px 36px 11px 12px;min-width:0;}
+.list-card-title{font-size:var(--fs-subtitle);font-weight:600;color:var(--text-title);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.list-card-preview{font-size:var(--fs-body);color:var(--text-body);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.list-card-tags{display:flex;gap:4px;margin-top:5px;flex-wrap:wrap;align-items:center;}
+.list-card-tag{font-size:var(--fs-small);color:var(--tag);background:rgba(128,128,168,0.12);padding:1px 5px;border-radius:3px;cursor:pointer;}
+.list-card-del{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:var(--fs-btn);padding:4px 6px;border-radius:4px;display:none;}
+.list-card:hover .list-card-del{display:block;}
+.list-card-del:hover{color:#c05050;}
+.lc-meta-item{font-size:var(--fs-small);color:var(--text-body);}
+.lc-meta-dot{font-size:var(--fs-small);color:var(--text-muted);margin:0 4px;}
+.search-highlight{background:rgba(120,120,160,0.35);border-radius:2px;padding:0 1px;}
+.search-result-count{font-size:var(--fs-small);color:var(--text-muted);padding:6px 14px 2px;}
+.list-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text-muted);gap:10px;padding:40px;}
+
+#editor-page{flex:1;display:none;flex-direction:column;overflow:hidden;}
+.editor-topbar{padding:7px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;background:var(--sidebar-bg);flex-shrink:0;}
+.back-btn{background:none;border:1px solid var(--border);cursor:pointer;color:var(--text-body);font-size:var(--fs-btn);padding:3px 10px;border-radius:4px;font-family:inherit;}
+.back-btn:hover{color:var(--text-title);}
+.editor-date{font-size:var(--fs-btn);color:var(--text-body);flex:1;}
+.save-status{font-size:var(--fs-small);color:var(--text-muted);}
+.save-status.saving{color:var(--accent-light);}
+.del-btn{background:none;border:1px solid #7a3030;cursor:pointer;color:#c05050;font-size:var(--fs-btn);padding:3px 10px;border-radius:4px;font-family:inherit;}
+.del-btn:hover{background:#3a1a1a;border-color:#c05050;color:#e07070;}
+.analyze-btn{background:none;border:1px solid var(--border);cursor:pointer;color:var(--accent-light);font-size:var(--fs-btn);padding:3px 10px;border-radius:4px;font-family:inherit;}
+.analyze-btn:hover{border-color:var(--accent-light);background:rgba(120,120,160,0.1);}
+.analyze-btn:disabled{opacity:0.5;cursor:not-allowed;}
+
+/* quill-mount: toolbar 自動排第一，其餘由 #editor-body 管 */
+#quill-mount{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+
+/* Quill toolbar */
+.ql-toolbar.ql-snow{background:var(--sidebar-bg) !important;border:none !important;border-bottom:1px solid var(--border) !important;padding:6px 14px !important;flex-shrink:0;}
+.ql-toolbar.ql-snow .ql-stroke{stroke:#C8C8DC !important;stroke-width:1.6px !important;}
+.ql-toolbar.ql-snow .ql-fill{fill:#C8C8DC !important;}
+.ql-toolbar.ql-snow button:hover .ql-stroke,.ql-toolbar.ql-snow .ql-active .ql-stroke{stroke:#FFFFFF !important;}
+.ql-toolbar.ql-snow button:hover .ql-fill,.ql-toolbar.ql-snow .ql-active .ql-fill{fill:#FFFFFF !important;}
+.ql-toolbar.ql-snow .ql-picker{color:#C8C8DC !important;font-size:var(--fs-small) !important;}
+.ql-toolbar.ql-snow .ql-picker-label{border-color:var(--border) !important;color:#C8C8DC !important;}
+.ql-snow .ql-picker-options{background:var(--card-bg) !important;border-color:var(--border) !important;}
+.ql-snow .ql-picker-item{color:var(--text-body) !important;}
+.ql-snow .ql-picker-item:hover,.ql-snow .ql-picker-item.ql-selected{color:var(--text-title) !important;}
+.ql-snow .ql-tooltip{background:var(--card-bg) !important;border-color:var(--border) !important;color:var(--text-body) !important;z-index:10;}
+
+/* editor-body: title → tags → quill content，flex column，可捲動 */
+#editor-body{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+
+/* title + tags */
+#title-input{width:100%;padding:12px 16px 4px;font-size:var(--fs-title);font-weight:600;background:transparent;border:none;outline:none;color:var(--text-title);font-family:inherit;flex-shrink:0;}
+#title-input::placeholder{color:var(--text-muted);}
+#tags-row{padding:4px 16px 8px;display:flex;gap:4px;align-items:center;flex-wrap:wrap;flex-shrink:0;border-bottom:1px solid var(--border);}
+.tag-chip{font-size:var(--fs-small);color:var(--tag);background:rgba(128,128,168,0.15);padding:2px 8px;border-radius:8px;cursor:pointer;position:relative;}
+.tag-chip:hover{background:rgba(128,128,168,0.28);}
+.tag-chip-suggested{font-size:var(--fs-small);color:var(--accent-light);background:transparent;padding:2px 8px;border-radius:8px;cursor:pointer;border:1px dashed var(--accent-light);opacity:0.75;position:relative;transition:all 0.15s;}
+.tag-chip-suggested:hover{opacity:1;background:rgba(128,128,168,0.12);}
+.tag-chip-suggested .tag-x{display:none;margin-left:4px;opacity:0.6;}
+.tag-chip-suggested:hover .tag-x{display:inline;}
+.tag-add{font-size:var(--fs-small);color:var(--accent-light);cursor:pointer;padding:2px 7px;border-radius:8px;border:1px dashed var(--accent-light);opacity:0.7;}
+.tag-add:hover{opacity:1;}
+
+/* ── Meta bar（日期列 + 天氣地點列）── */
+#date-meta-wrap{flex-shrink:0;border-bottom:1px solid var(--border);}
+#date-row{padding:10px 16px 3px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.date-main{font-size:var(--fs-btn);color:var(--text-body);font-weight:500;}
+.date-dot{color:var(--text-muted);font-size:var(--fs-btn);}
+.date-festival{font-size:var(--fs-btn);color:var(--accent-light);font-weight:500;}
+.date-jieqi{font-size:var(--fs-small);color:var(--text-body);background:rgba(120,120,160,0.13);border:1px solid rgba(120,120,160,0.2);padding:1px 8px;border-radius:8px;}
+#weather-location-row{padding:2px 16px 8px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;min-height:24px;}
+.wl-item{display:flex;align-items:center;gap:5px;font-size:var(--fs-small);color:var(--text-body);}
+.wl-divider{width:1px;height:11px;background:var(--border);}
+.wl-loading{font-size:var(--fs-small);color:var(--text-muted);opacity:0.4;font-style:italic;}
+/* 地點可點擊編輯 */
+.location-wrap{display:flex;align-items:center;gap:4px;cursor:pointer;border-radius:4px;padding:1px 3px;margin:-1px -3px;transition:background 0.15s;position:relative;}
+.location-wrap:hover{background:rgba(120,120,160,0.1);}
+.location-edit-hint{font-size:10px;color:var(--text-muted);opacity:0;transition:opacity 0.15s;margin-left:1px;}
+.location-wrap:hover .location-edit-hint{opacity:1;}
+.location-input-inline{background:var(--bg);border:1px solid var(--accent-light);border-radius:4px;padding:1px 7px;font-size:var(--fs-small);color:var(--text-title);font-family:inherit;outline:none;width:150px;}
+.location-empty-hint{font-size:var(--fs-small);color:var(--text-muted);cursor:pointer;border-bottom:1px dashed var(--border);padding-bottom:1px;opacity:0.6;}
+.location-empty-hint:hover{color:var(--accent-light);border-bottom-color:var(--accent-light);opacity:1;}
+.pin-svg{display:inline-flex;align-items:center;flex-shrink:0;}
+
+/* Quill editor */
+.ql-container.ql-snow{border:none !important;flex:1;overflow-y:auto;font-family:'Microsoft JhengHei','PingFang TC',sans-serif !important;}
+.ql-editor{color:var(--text-body) !important;font-size:var(--fs-body) !important;line-height:var(--editor-line-height,1.8) !important;padding:12px 16px 60px !important;background:var(--bg);}
+.ql-editor h1,.ql-editor h2{color:var(--text-title);}
+.ql-editor .ts-divider{display:block;text-align:center;color:var(--text-muted);font-size:var(--fs-small);letter-spacing:2px;margin:12px 0;pointer-events:none;user-select:none;}
+.ql-editor.ql-blank::before{color:var(--text-muted) !important;font-style:normal !important;}
+.ql-editor.ime-composing::before{display:none !important;}
+
+
+/* ── 標籤管理頁 ── */
+#tags-page{flex:1;display:none;flex-direction:column;overflow:hidden;}
+.tags-topbar{padding:7px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;background:var(--sidebar-bg);flex-shrink:0;}
+.tags-topbar-title{font-size:var(--fs-subtitle);font-weight:600;color:var(--text-body);flex:1;}
+.tag-filter-bar{padding:8px 16px;border-bottom:1px solid var(--border);display:flex;gap:6px;align-items:center;flex-wrap:wrap;flex-shrink:0;}
+.tag-filter-chip{font-size:var(--fs-btn);color:var(--text-muted);background:transparent;border:1px solid var(--border);padding:3px 10px;border-radius:12px;cursor:pointer;transition:all 0.15s;}
+.tag-filter-chip:hover{border-color:var(--accent-light);color:var(--accent-light);}
+.tag-filter-chip.active{background:var(--accent);border-color:var(--accent-light);color:var(--text-title);}
+.tag-filter-all{font-size:var(--fs-btn);color:var(--text-muted);padding:3px 10px;border-radius:12px;border:1px solid var(--border);cursor:pointer;}
+.tag-filter-all:hover,.tag-filter-all.active{border-color:var(--accent-light);color:var(--accent-light);}
+#tag-filtered-list{flex:1;overflow-y:auto;}
+.tag-mgmt-list{padding:12px 16px;display:flex;flex-direction:column;gap:6px;}
+.tag-mgmt-item{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:6px;background:var(--card-bg);border:1px solid var(--border);}
+.tag-mgmt-name{flex:1;font-size:var(--fs-body);color:var(--text-body);}
+.tag-mgmt-count{font-size:var(--fs-small);color:var(--text-muted);margin-right:4px;}
+.tag-mgmt-rename{background:none;border:1px solid var(--border);color:var(--text-muted);font-size:var(--fs-btn);padding:2px 8px;border-radius:4px;cursor:pointer;font-family:inherit;}
+.tag-mgmt-rename:hover{border-color:var(--accent-light);color:var(--accent-light);}
+.tag-mgmt-del{background:none;border:none;color:var(--text-muted);font-size:var(--fs-btn);padding:2px 6px;border-radius:4px;cursor:pointer;}
+.tag-mgmt-del:hover{color:#c05050;}
+.tag-sidebar-icon{font-size:var(--fs-small);padding:3px 9px;cursor:pointer;color:var(--text-muted);border-radius:4px;background:none;border:1px solid var(--border);line-height:1.6;}
+.tag-sidebar-icon:hover{color:var(--accent-light);}
+.sidebar-footer{padding:8px 12px;border-top:1px solid var(--border);display:flex;gap:6px;align-items:center;justify-content:center;flex-shrink:0;}
+
+.editor-bottom{flex-shrink:0;}
+/* 今日回顧 */
+.otd-wrap{border-top:1px solid var(--border);border-bottom:1px solid var(--border);}
+.otd-header{display:flex;align-items:center;justify-content:space-between;padding:7px 16px;cursor:pointer;user-select:none;}
+.otd-header:hover .otd-toggle-label{color:var(--accent-light);}
+.otd-left-bar{width:2px;height:14px;background:var(--accent-light);border-radius:1px;margin-right:8px;flex-shrink:0;opacity:0.7;}
+.otd-toggle-label{font-size:var(--fs-btn);font-weight:500;color:var(--text-body);flex:1;}
+.otd-toggle-arrow{font-size:var(--fs-small);color:var(--text-muted);}
+.otd-body{padding:0 16px 10px;}
+.otd-item{padding:6px 0;border-bottom:1px solid var(--border);}
+.otd-item:last-child{border-bottom:none;}
+.otd-year{font-size:var(--fs-small);color:var(--accent-light);margin-bottom:2px;font-weight:500;}
+.otd-title{font-size:var(--fs-btn);color:var(--text-body);}
+.otd-preview{font-size:var(--fs-small);color:var(--text-muted);line-height:1.5;margin-top:2px;}
+.otd-read{font-size:var(--fs-small);color:var(--accent-light);cursor:pointer;background:none;border:none;font-family:inherit;padding:0;margin-top:4px;display:inline-block;opacity:0.85;}
+.otd-read:hover{opacity:1;text-decoration:underline;}
+/* 心情列 */
+.mood-bar{padding:6px 16px;display:flex;align-items:center;gap:6px;min-height:28px;border-bottom:1px solid var(--border);}
+.mood-label{font-size:var(--fs-small);color:var(--text-muted);}
+#ai-bar{padding:0 16px 6px;}
+.ai-question{background:var(--card-bg);border:1px solid var(--border);border-radius:7px;padding:8px 12px;font-size:var(--fs-btn);color:var(--accent-light);display:flex;align-items:flex-start;gap:6px;animation:fadeIn 0.25s;}
+.ai-q-close{margin-left:auto;color:var(--text-muted);font-size:var(--fs-btn);cursor:pointer;}
+.ai-q-close:hover{color:var(--text-title);}
+.action-bar{padding:7px 16px;border-top:1px solid var(--border);display:flex;align-items:center;}
+.ts-btn{background:none;border:1px solid var(--border);border-radius:5px;padding:5px 12px;font-size:var(--fs-btn);color:var(--text-muted);cursor:pointer;font-family:inherit;margin-right:6px;}
+.ts-btn:hover{border-color:var(--accent-light);color:var(--accent-light);}
+.ai-btn{background:none;border:1px solid var(--border);border-radius:5px;padding:5px 12px;font-size:var(--fs-btn);color:var(--text-muted);cursor:pointer;font-family:inherit;}
+.ai-btn:hover{border-color:var(--accent-light);color:var(--accent-light);}
+
+.tag-picker-item{padding:5px 8px;border-radius:4px;font-size:var(--fs-btn);color:var(--text-body);cursor:pointer;}
+.tag-picker-item:hover{background:var(--hover);color:var(--text-title);}
+::-webkit-scrollbar{width:3px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(3px);}to{opacity:1;transform:translateY(0);}}
+
+/* ── 設定頁 ── */
+#settings-page{flex:1;display:none;flex-direction:column;overflow:hidden;}
+.settings-topbar{padding:7px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;background:var(--sidebar-bg);flex-shrink:0;}
+.settings-topbar-title{font-size:var(--fs-subtitle);font-weight:600;color:var(--text-body);flex:1;}
+.settings-body{flex:1;overflow-y:auto;padding:16px;}
+.settings-section{margin-bottom:24px;}
+.settings-section-title{font-size:var(--fs-btn);font-weight:600;color:var(--text-muted);letter-spacing:0.5px;text-transform:uppercase;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border);}
+.settings-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);gap:12px;}
+.settings-row:last-child{border-bottom:none;}
+.settings-label{font-size:var(--fs-body);color:var(--text-body);}
+.settings-desc{font-size:var(--fs-small);color:var(--text-muted);margin-top:2px;}
+.settings-label-wrap{flex:1;}
+/* Toggle switch */
+.toggle-switch{position:relative;width:36px;height:20px;flex-shrink:0;}
+.toggle-switch input{opacity:0;width:0;height:0;position:absolute;}
+.toggle-slider{position:absolute;inset:0;background:var(--border);border-radius:10px;cursor:pointer;transition:background 0.2s;}
+.toggle-slider::before{content:'';position:absolute;width:14px;height:14px;left:3px;top:3px;background:var(--text-muted);border-radius:50%;transition:transform 0.2s,background 0.2s;}
+.toggle-switch input:checked+.toggle-slider{background:var(--accent);}
+.toggle-switch input:checked+.toggle-slider::before{transform:translateX(16px);background:var(--text-title);}
+/* Segment control */
+.seg-control{display:flex;background:var(--sidebar-bg);border:1px solid var(--border);border-radius:6px;overflow:hidden;}
+.seg-btn{background:none;border:none;padding:4px 12px;font-size:var(--fs-small);color:var(--text-muted);cursor:pointer;font-family:inherit;transition:all 0.15s;}
+.seg-btn:hover{color:var(--text-body);}
+.seg-btn.active{background:var(--accent);color:var(--text-title);}
+/* Theme dots in settings */
+.settings-theme-dots{display:flex;gap:10px;align-items:center;}
+.s-theme-dot{width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:border-color 0.15s;position:relative;}
+.s-theme-dot.active{border-color:var(--text-title);}
+.s-theme-dot::after{content:'';position:absolute;inset:3px;border-radius:50%;}
+/* Data buttons */
+.settings-action-btn{background:none;border:1px solid var(--border);border-radius:5px;padding:5px 14px;font-size:var(--fs-btn);color:var(--text-body);cursor:pointer;font-family:inherit;}
+.settings-action-btn:hover{border-color:var(--accent-light);color:var(--accent-light);}
+.settings-action-btn.disabled{opacity:0.4;cursor:not-allowed;}
+
+</style>
+
+<div id="app">
+  <div id="sidebar">
+    <div class="sidebar-header">
+      <span class="app-name">Memoire</span>
+      <button class="icon-btn" onclick="newEntry()">＋</button>
+    </div>
+    <div id="calendar">
+      <div class="cal-nav">
+        <div class="cal-nav-selects">
+          <div class="cal-nav-select-wrap" style="flex:1.1;">
+            <select class="cal-nav-select" id="cal-year-select" onchange="onCalYearChange(this.value)"></select>
+          </div>
+          <div class="cal-nav-select-wrap" style="flex:1;">
+            <select class="cal-nav-select" id="cal-month-select" onchange="onCalMonthChange(this.value)"></select>
+          </div>
+        </div>
+        <button class="cal-nav-btn" onclick="changeMonth(-1)">‹</button>
+        <button class="cal-today-btn" onclick="goToday()">Today</button>
+        <button class="cal-nav-btn" onclick="changeMonth(1)">›</button>
+      </div>
+      <div class="cal-grid" id="cal-grid"></div>
+    </div>
+    <div id="search-wrap">
+      <input id="search-box" type="text" placeholder="🔍 搜尋日記..." onkeydown="onSearchKey(event)">
+    </div>
+    <div id="entry-list"></div>
+    <div class="sidebar-footer">
+      <button class="tag-sidebar-icon" onclick="showTagsPage()">標籤管理</button>
+      <button class="tag-sidebar-icon" onclick="showSettingsPage()">設定</button>
+    </div>
+  </div>
+
+  <div id="main">
+    <div class="topbar">
+      <button class="toggle-btn" onclick="toggleSidebar()">☰</button>
+      <span class="topbar-title" id="topbar-title">所有日記</span>
+      <span id="search-state" style="display:none;flex:1;font-size:var(--fs-btn);color:var(--accent-light);align-items:center;gap:6px;overflow:hidden;">
+        <span style="opacity:0.6;">🔍</span>
+        <span id="search-query-label" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></span>
+        <button onclick="clearSearch()" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:var(--fs-btn);padding:0 2px;flex-shrink:0;">×</button>
+      </span>
+      <span id="otd-state" style="display:none;flex:1;font-size:var(--fs-btn);color:var(--accent-light);align-items:center;gap:6px;overflow:hidden;">
+        <span style="opacity:0.6;">📅</span>
+        <span id="otd-state-label" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></span>
+        <button onclick="showListPage()" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:var(--fs-btn);padding:0 2px;flex-shrink:0;">×</button>
+      </span>
+      <span id="search-count" style="display:none;font-size:var(--fs-small);color:var(--text-muted);white-space:nowrap;margin-right:6px;"></span>
+      <button class="icon-btn" id="otd-topbar-btn" onclick="showOtdPage()" title="今日回顧">📅</button>
+      <button class="new-btn" id="new-btn" onclick="newEntry()">＋ 新增</button>
+    </div>
+    <div id="list-page"></div>
+    <div id="editor-page">
+      <div class="editor-topbar">
+        <button class="back-btn" onclick="goBack()">← 返回</button>
+        <span class="editor-date" id="editor-date"></span>
+        <span class="save-status" id="save-status"></span>
+        <button class="analyze-btn" id="analyze-btn" onclick="saveAndAnalyze()">✨ 儲存並分析</button>
+        <button class="del-btn" onclick="deleteCurrentEntry()">刪除</button>
+      </div>
+      <!-- quill-mount: Quill 在此初始化，toolbar 自動插在最前 -->
+      <!-- buildEditor() 會把 title+tags 插入 .ql-container 之前 -->
+      <div id="quill-mount"></div>
+      <div class="editor-bottom">
+        <div class="mood-bar"><span class="mood-label">心情</span><span id="mood-val" style="font-size:var(--fs-small);opacity:0.5;">儲存後分析...</span></div>
+        <div id="ai-bar"></div>
+        <div class="action-bar">
+          <button class="ts-btn" onclick="insertTimestamp()">🕐 時間戳記</button><button class="ts-btn" onclick="showImageComingSoon()">🖼 插入圖片</button><button class="ai-btn" onclick="askAI()">✨ 給我一個問題</button>
+        </div>
+      </div>
+    </div>
+    <div id="tags-page">
+      <div class="tags-topbar">
+        <button class="back-btn" onclick="showListPage()">← 返回</button>
+        
+      </div>
+      <div class="tag-filter-bar" id="tag-filter-bar"></div>
+      <div id="tag-filtered-list"></div>
+    </div>
+
+    <div id="settings-page">
+      <div class="settings-topbar">
+        <button class="back-btn" onclick="showListPage()">← 返回</button>
+      </div>
+      <div class="settings-body">
+
+        <!-- 外觀 -->
+        <div class="settings-section">
+          <div class="settings-section-title">外觀</div>
+          <div class="settings-row">
+            <div class="settings-label-wrap"><div class="settings-label">主題色系</div></div>
+            <div class="settings-theme-dots">
+              <div class="s-theme-dot" style="background:#505078;" onclick="setTheme('')" title="中性灰" id="sdot-gray"></div>
+              <div class="s-theme-dot" style="background:#B86010;" onclick="setTheme('warm')" title="暖橘棕" id="sdot-warm"></div>
+              <div class="s-theme-dot" style="background:#1E7868;" onclick="setTheme('teal')" title="藍綠清爽" id="sdot-teal"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 編輯器 -->
+        <div class="settings-section">
+          <div class="settings-section-title">編輯器</div>
+          <div class="settings-row">
+            <div class="settings-label-wrap"><div class="settings-label">字型大小</div></div>
+            <div class="seg-control">
+              <button class="seg-btn" onclick="setFontSize('small')">小</button>
+              <button class="seg-btn active" onclick="setFontSize('medium')">中</button>
+              <button class="seg-btn" onclick="setFontSize('large')">大</button>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label-wrap"><div class="settings-label">行距</div></div>
+            <div class="seg-control">
+              <button class="seg-btn" onclick="setLineHeight('compact')">緊湊</button>
+              <button class="seg-btn active" onclick="setLineHeight('normal')">適中</button>
+              <button class="seg-btn" onclick="setLineHeight('loose')">寬鬆</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI 功能 -->
+        <div class="settings-section">
+          <div class="settings-section-title">AI 功能</div>
+          <div class="settings-row">
+            <div class="settings-label-wrap">
+              <div class="settings-label">寫作引導</div>
+              <div class="settings-desc">編輯器底部「給我一個問題」按鈕</div>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="toggle-writing" checked onchange="saveSettings()">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label-wrap">
+              <div class="settings-label">情緒分析</div>
+              <div class="settings-desc">「儲存並分析」按鈕與心情標籤</div>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="toggle-mood" checked onchange="saveSettings()">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- 資料 -->
+        <div class="settings-section">
+          <div class="settings-section-title">資料</div>
+          <div class="settings-row">
+            <div class="settings-label-wrap"><div class="settings-label">匯出所有日記</div></div>
+            <button class="settings-action-btn" onclick="exportEntries()">匯出 .md</button>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label-wrap">
+              <div class="settings-label">匯入 Diaro 備份</div>
+              <div class="settings-desc">即將推出</div>
+            </div>
+            <button class="settings-action-btn disabled" disabled>匯入</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+
+// ── GAS 設定（填入你的值）──
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbz3xclRrSiG09WfRAxONhQCJWo9I18OgIQJtpMfOhqA-RekuEswI4d9-IZNQETWzEIAXw/exec';
+const GAS_SECRET = 'cUoqAiTv7qhaX68WXiYL';
+
+async function callGAS(action, extra={}) {
+  const data = encodeURIComponent(JSON.stringify(extra));
+  const url = `${GAS_URL}?secret=${GAS_SECRET}&action=${action}&data=${data}`;
+  const r = await fetch(url);
+  return r.json();
+}
+
+const TK='memoire_v9_theme',SETK='memoire_v9_settings';
+const CACHE_PREFIX='memoire_v9_content_';  // localStorage key prefix for content cache
+const INDEX_CACHE_KEY='memoire_v9_index';   // localStorage key for index cache
+let entries={},currentDate=null,quill=null;
+let calYear=new Date().getFullYear(),calMonth=new Date().getMonth();
+let autoSaveTimer=null,sidebarOpen=true;
+let pendingSuggestedTags={};
+let appSettings={fontSize:'medium',lineHeight:'normal',aiWriting:true,aiMood:true};
+let driveReady=false; // Drive 初始化完成旗標
+
+// ── localStorage helpers（僅用於 theme/settings/content cache）──
+function lsGet(key){try{return localStorage.getItem(key);}catch(e){return null;}}
+function lsSet(key,val){try{localStorage.setItem(key,val);}catch(e){}}
+function lsDel(key){try{localStorage.removeItem(key);}catch(e){}}
+
+// ── Drive 儲存層 ──
+
+// 啟動：從 Drive 讀取 index.json，建立 entries（無 content）
+function showLoadingState(msg){
+  const page=document.getElementById('list-page');
+  if(page)page.innerHTML=`<div class="list-empty"><div style="font-size:28px;opacity:0.3;">⏳</div><div style="font-size:var(--fs-btn);color:var(--text-muted);">${msg}</div></div>`;
+}
+
+async function loadEntries(){
+  // 先用 localStorage cache 立刻渲染
+  const cached=lsGet(INDEX_CACHE_KEY);
+  if(cached){
+    try{
+      const raw=JSON.parse(cached);
+      // 過濾掉非法 key（必須符合 YYYY-MM-DD）
+      entries=Object.fromEntries(
+        Object.entries(raw).filter(([k])=>/^\d{4}-\d{2}-\d{2}$/.test(k))
+      );
+      renderCal();renderEntryList();renderListPage();
+    }catch(e){}
+  } else {
+    showLoadingState('連線中...');
+  }
+  // 背景從 Drive 拉最新資料
+  try{
+    const res=await callGAS('readIndex');
+    if(res.error){
+      if(!cached)showLoadingState('連線失敗，請重新整理');
+      return;
+    }
+    const raw=res.data||{};
+    // 過濾掉非法 key
+    entries=Object.fromEntries(
+      Object.entries(raw).filter(([k])=>/^\d{4}-\d{2}-\d{2}$/.test(k))
+    );
+    driveReady=true;
+    lsSet(INDEX_CACHE_KEY, JSON.stringify(entries));
+    renderCal();renderEntryList();renderListPage();
+  }catch(e){
+    if(!cached)showLoadingState('網路錯誤，請重新整理');
+  }
+}
+
+// 儲存單筆日記到 Drive（.md + index 單筆 merge）
+async function saveEntries(){
+  if(!currentDate||!entries[currentDate])return;
+  const e=entries[currentDate];
+  const plain=getPlain(e.content||'');
+
+  // 1. 寫 .md 檔（content 存 Drive）
+  await callGAS('writeEntry',{
+    date:currentDate,
+    content:e.content||''
+  });
+
+  // 2. 更新 index 單筆（列表所需欄位，不含 content）
+  await callGAS('writeIndex',{
+    date:currentDate,
+    entry:{
+      title:e.title||'',
+      preview:plain.slice(0,100),
+      tags:e.tags||[],
+      mood:e.mood||'',
+      weather:e.weather||'',
+      location:e.location||''
+    }
+  });
+
+  // 3. 同步更新 localStorage content cache
+  lsSet(CACHE_PREFIX+currentDate, e.content||'');
+  // 4. 同步更新 index cache
+  lsSet(INDEX_CACHE_KEY, JSON.stringify(entries));
+}
+
+// 讀取單筆日記 content（有 cache 直接用，否則從 Drive 抓）
+async function loadEntryContent(ds){
+  // 先查 localStorage cache
+  const cached=lsGet(CACHE_PREFIX+ds);
+  if(cached!==null)return cached;
+  // cache miss，從 Drive 抓
+  try{
+    const res=await callGAS('readEntry',{date:ds});
+    const content=res.content||'';
+    lsSet(CACHE_PREFIX+ds, content);
+    return content;
+  }catch(e){return '';}
+}
+function loadTheme(){try{const v=lsGet(TK);if(v)applyTheme(v,false);}catch(e){}}
+function setTheme(t){applyTheme(t,true);}
+function applyTheme(t,save){
+  document.body.className=t?'theme-'+t:'';
+  // 設定頁色點同步
+  ['sdot-gray','sdot-warm','sdot-teal'].forEach(id=>document.getElementById(id)?.classList.remove('active'));
+  const dotId={'':'sdot-gray','warm':'sdot-warm','teal':'sdot-teal'}[t]??'sdot-gray';
+  document.getElementById(dotId)?.classList.add('active');
+  if(save){try{window.storage.set(TK,t);}catch(e){try{localStorage.setItem(TK,t);}catch(e2){}}}
+}
+function todayStr(){return fmtDate(new Date());}
+function fmtDate(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function fmtDisplay(ds){const d=new Date(ds+'T12:00:00');const dw=['日','一','二','三','四','五','六'];return d.getFullYear()+' 年 '+(d.getMonth()+1)+' 月 '+d.getDate()+' 日（'+dw[d.getDay()]+'）';}
+function fmtDow(ds){return['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(ds+'T12:00:00').getDay()];}
+function fmtMG(ds){const d=new Date(ds+'T12:00:00');return['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()]+', '+d.getFullYear();}
+function getPlain(html){return(html||'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();}
+function toggleSidebar(){sidebarOpen=!sidebarOpen;document.getElementById('sidebar').classList.toggle('collapsed',!sidebarOpen);}
+
+function renderCal(){
+  const grid=document.getElementById('cal-grid');
+  const yearSel=document.getElementById('cal-year-select');
+  const monthSel=document.getElementById('cal-month-select');
+  if(!grid||!yearSel||!monthSel)return;
+
+  // 動態年份範圍：最早日記年份 → 今年
+  const thisYear=new Date().getFullYear();
+  const allYears=Object.keys(entries).map(ds=>parseInt(ds.slice(0,4)));
+  const minYear=allYears.length?Math.min(...allYears):thisYear;
+  // 重建 year options（只在選項不符時才重建，避免閃爍）
+  const yearOptions=[];
+  for(let y=minYear;y<=thisYear;y++)yearOptions.push(y);
+  if(yearSel.options.length!==yearOptions.length||parseInt(yearSel.options[0]?.value)!==minYear){
+    yearSel.innerHTML=yearOptions.map(y=>`<option value="${y}"${y===calYear?' selected':''}>${y}</option>`).join('');
+  } else {
+    yearSel.value=calYear;
+  }
+
+  // 月份 options
+  const monthNames=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  if(monthSel.options.length!==12){
+    monthSel.innerHTML=monthNames.map((m,i)=>`<option value="${i}">${m}</option>`).join('');
+  }
+  monthSel.value=calMonth;
+
+  // 日曆格子
+  const dows=['日','一','二','三','四','五','六'];
+  let html=dows.map(d=>`<div class="cal-dow">${d}</div>`).join('');
+  const first=new Date(calYear,calMonth,1).getDay(),dim=new Date(calYear,calMonth+1,0).getDate(),prev=new Date(calYear,calMonth,0).getDate(),today=todayStr();
+  for(let i=0;i<first;i++){const day=prev-first+1+i;const m=calMonth===0?12:calMonth;const y=calMonth===0?calYear-1:calYear;html+=`<div class="cal-day other-month" onclick="selectDate('${y+'-'+String(m).padStart(2,'0')+'-'+String(day).padStart(2,'0')}')">${day}</div>`;}
+  for(let d=1;d<=dim;d++){const ds=calYear+'-'+String(calMonth+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');let cls='cal-day';if(ds===today)cls+=' today';if(ds===currentDate)cls+=' selected';if(entries[ds])cls+=' has-entry';html+=`<div class="${cls}" onclick="selectDate('${ds}')">${d}</div>`;}
+  grid.innerHTML=html;
+}
+function onCalYearChange(y){calYear=parseInt(y);renderCal();}
+function onCalMonthChange(m){calMonth=parseInt(m);renderCal();}
+function changeMonth(d){calMonth+=d;if(calMonth<0){calMonth=11;calYear--;}if(calMonth>11){calMonth=0;calYear++;}renderCal();}
+function goToday(){const t=new Date();calYear=t.getFullYear();calMonth=t.getMonth();renderCal();const today=todayStr();if(entries[today])openEntry(today);else showListPage();}
+function selectDate(ds){calYear=parseInt(ds.slice(0,4));calMonth=parseInt(ds.slice(5,7))-1;if(entries[ds])openEntry(ds);else newEntryOnDate(ds);}
+
+function renderEntryList(){
+  const list=document.getElementById('entry-list');
+  const sorted=Object.keys(entries).sort((a,b)=>b.localeCompare(a));
+  if(!sorted.length){list.innerHTML='<div style="padding:10px 12px;font-size:var(--fs-small);color:var(--text-muted);">尚無日記</div>';return;}
+  list.innerHTML=sorted.map(ds=>{
+    const e=entries[ds];const cls=ds===currentDate?'entry-item active':'entry-item';
+    const label=e.title||getPlain(e.content).slice(0,20)||'（無內容）';
+    return `<div class="${cls}" onclick="openEntry('${ds}')"><div class="entry-item-text"><div class="entry-date">${fmtDisplay(ds)}</div><div class="entry-title-s">${label}</div></div><button class="entry-del" onclick="event.stopPropagation();deleteEntry('${ds}')">✕</button></div>`;
+  }).join('');
+}
+
+function renderListPage(){
+  const page=document.getElementById('list-page');
+  const sorted=Object.keys(entries).sort((a,b)=>b.localeCompare(a));
+  if(!sorted.length){page.innerHTML=`<div class="list-empty"><div style="font-size:32px;opacity:0.3;">📖</div><div style="font-size:var(--fs-btn);">還沒有日記，點擊「＋ 新增」開始</div></div>`;return;}
+  const groups={};sorted.forEach(ds=>{const g=fmtMG(ds);if(!groups[g])groups[g]=[];groups[g].push(ds);});
+  let html='';
+  Object.keys(groups).forEach(g=>{
+    html+=`<div class="list-month-group"><div class="list-month-label">${g}</div><div class="list-cards-wrap">`;
+    groups[g].forEach(ds=>{
+      const e=entries[ds],plain=getPlain(e.content),hasTitle=!!(e.title&&e.title.trim());
+      const tags=(e.tags||[]).map(t=>`<span class="list-card-tag" onclick="event.stopPropagation();jumpToTag('${t}')">${t}</span>`).join('');
+      // 底部 meta 列：天氣 · 地點 · 心情 · 標籤（有什麼顯示什麼）
+      const metaParts=[];
+      if(e.weather)metaParts.push(`<span class="lc-meta-item">${e.weather}</span>`);
+      if(e.location)metaParts.push(`<span class="lc-meta-item">${'<svg width="8" height="11" viewBox="0 0 10 14" fill="none" style="display:inline;vertical-align:middle;margin-right:2px;"><path d="M5 0C2.24 0 0 2.24 0 5C0 8.75 5 14 5 14C5 14 10 8.75 10 5C10 2.24 7.76 0 5 0ZM5 6.5C4.17 6.5 3.5 5.83 3.5 5C3.5 4.17 4.17 3.5 5 3.5C5.83 3.5 6.5 4.17 6.5 5C6.5 5.83 5.83 6.5 5 6.5Z" fill="var(--accent-light)"/></svg>'}${e.location}</span>`);
+      if(e.mood)metaParts.push(`<span class="lc-meta-item">${e.mood}</span>`);
+      const metaHtml=metaParts.length?metaParts.join('<span class="lc-meta-dot">·</span>')+( tags?'<span class="lc-meta-dot">·</span>'+tags:''):'';
+      const bottomRow=metaHtml||(tags?tags:'');
+      html+=`<div class="list-card" onclick="openEntry('${ds}')">
+        <div class="list-card-left">
+          <div class="list-card-dow">${fmtDow(ds)}</div>
+          <div class="list-card-day">${parseInt(ds.slice(8))}</div>
+        </div>
+        <div class="list-card-divider"></div>
+        <div class="list-card-body">
+          ${hasTitle?`<div class="list-card-title">${e.title}</div>`:''}
+          ${plain?`<div class="list-card-preview">${plain.slice(0,120)}</div>`:(hasTitle?'':`<div class="list-card-preview" style="opacity:0.4;">（無內容）</div>`)}
+          ${bottomRow?`<div class="list-card-tags">${bottomRow}</div>`:''}
+        </div>
+        <button class="list-card-del" onclick="event.stopPropagation();deleteEntry('${ds}')">✕</button>
+      </div>`;
+    });
+    html+=`</div></div>`;
+  });
+  page.innerHTML=html;
+}
+
+function showListPage(){
+  currentDate=null;
+  activeFilterTag=null;
+  currentSearch=null;
+  document.getElementById('search-box').value='';
+  document.getElementById('topbar-title').style.display='';
+  document.getElementById('search-state').style.display='none';
+  document.getElementById('search-count').style.display='none';
+  document.getElementById('otd-state').style.display='none';
+  document.getElementById('list-page').style.cssText='flex:1;overflow-y:auto;display:flex;flex-direction:column;';
+  document.getElementById('editor-page').style.display='none';
+  document.getElementById('tags-page').style.display='none';
+  document.getElementById('settings-page').style.display='none';
+  document.getElementById('topbar-title').textContent='所有日記';
+  renderCal();renderEntryList();renderListPage();
+}
+function showEditorPage(){
+  document.getElementById('list-page').style.display='none';
+  document.getElementById('editor-page').style.cssText='flex:1;display:flex;flex-direction:column;overflow:hidden;';
+  document.getElementById('tags-page').style.display='none';
+  document.getElementById('settings-page').style.display='none';
+  document.getElementById('topbar-title').textContent='';
+}
+async function goBack(){
+  clearTimeout(autoSaveTimer);
+  if(window._geoFallbackTimer){clearTimeout(window._geoFallbackTimer);window._geoFallbackTimer=null;}
+  if(currentDate){
+    const ti=document.getElementById('title-input');
+    const title=ti?ti.value.trim():'';
+    const content=quill?getPlain(quill.root.innerHTML).trim():'';
+    if(!title&&!content){
+      // 空日記：先切畫面，背景刪除
+      const ds=currentDate;
+      delete entries[ds];
+      lsDel(CACHE_PREFIX+ds);
+      showListPage();
+      callGAS('deleteEntry',{date:ds}); // 背景執行，不 await
+    } else {
+      // 有內容：先切畫面，背景儲存
+      if(quill)entries[currentDate].content=quill.root.innerHTML;
+      if(ti)entries[currentDate].title=ti.value;
+      showListPage();
+      doSave(); // 背景執行，不 await
+    }
+  } else {
+    showListPage();
+  }
+}
+async function openEntry(ds){
+  currentDate=ds;calYear=parseInt(ds.slice(0,4));calMonth=parseInt(ds.slice(5,7))-1;
+  // 若 content 尚未載入（lazy load）
+  if(entries[ds]&&!entries[ds].content){
+    showEditorPage();
+    buildEditor(entries[ds]);  // 先顯示 UI（title/tags 已有）
+    setSaveStatus('載入中...');
+    const content=await loadEntryContent(ds);
+    if(currentDate===ds){  // 確認還在同一篇
+      entries[ds].content=content;
+      if(quill)quill.clipboard.dangerouslyPasteHTML(content);
+      setSaveStatus('');
+    }
+  } else {
+    showEditorPage();buildEditor(entries[ds]||{});
+  }
+  renderCal();renderEntryList();
+}
+function newEntry(){newEntryOnDate(todayStr());}
+function newEntryOnDate(ds){currentDate=ds;calYear=parseInt(ds.slice(0,4));calMonth=parseInt(ds.slice(5,7))-1;showEditorPage();buildEditor(entries[ds]||{});renderCal();renderEntryList();}
+
+function buildEditor(e){
+  const mv=document.getElementById('mood-val');
+  if(mv){mv.textContent=e.mood||'點「儲存並分析」';mv.style.opacity=e.mood?'1':'0.5';}
+  document.getElementById('ai-bar').innerHTML='';
+  setSaveStatus('');
+
+  // 策略：先在 mount 裡手動建好結構，再讓 Quill 只初始化在 #quill-editor
+  // 最終 DOM：
+  //   #quill-mount (flex column)
+  //     #editor-body (flex:1, flex column, overflow:hidden)
+  //       #title-input
+  //       #tags-row
+  //       #quill-editor  ← Quill 在這裡初始化，toolbar 插到 #quill-editor 前面
+  //         .ql-toolbar  (由 Quill 插入，但因為 container 是 #quill-editor，toolbar 在它內部)
+  //         .ql-container
+  // 注意：Quill snow toolbar 實際插在 quill-editor 的 previousSibling 位置（mount 層）
+  // 最穩的做法：toolbar 掛在 mount，editor-body 含 title/tags/ql-container
+
+  const mount=document.getElementById('quill-mount');
+  mount.innerHTML='';
+
+  // 1. 先在 mount 建一個暫存 div 給 Quill 初始化（toolbar 會插到 mount 裡）
+  const tempDiv=document.createElement('div');
+  mount.appendChild(tempDiv);
+
+  quill=new Quill(tempDiv,{
+    theme:'snow',
+    placeholder:'今天想寫什麼...',
+    modules:{toolbar:[
+      ['bold','italic','underline'],
+      [{header:[1,2,false]}],
+      [{list:'ordered'},{list:'bullet'}],
+      ['blockquote','code-block'],
+      ['clean']
+    ]}
+  });
+  // 現在 mount 結構：.ql-toolbar（Quill 插到 tempDiv 前面）/ tempDiv(.ql-container)
+
+  // 2. 建 editor-body，把 date-meta + title + tags + ql-container 放進去
+  const editorBody=document.createElement('div');
+  editorBody.id='editor-body';
+
+  // ── date-meta-wrap：日期列 + 天氣地點列 ──
+  const dateMeta=document.createElement('div');
+  dateMeta.id='date-meta-wrap';
+  // 日期列
+  const dateRow=document.createElement('div');
+  dateRow.id='date-row';
+  const {festival,jieqi}=getDateInfo(currentDate);
+  let dateHtml=`<span class="date-main">${fmtDisplay(currentDate)}</span>`;
+  if(festival) dateHtml+=`<span class="date-dot">·</span><span class="date-festival">${festival}</span>`;
+  else if(jieqi) dateHtml+=`<span class="date-dot">·</span><span class="date-jieqi">${jieqi}</span>`;
+  dateRow.innerHTML=dateHtml;
+  dateMeta.appendChild(dateRow);
+  // 天氣地點列
+  const wlRow=document.createElement('div');
+  wlRow.id='weather-location-row';
+  dateMeta.appendChild(wlRow);
+  editorBody.appendChild(dateMeta);
+
+  const titleEl=document.createElement('input');
+  titleEl.id='title-input';
+  titleEl.placeholder='標題（選填）';
+  titleEl.autocomplete='off';
+  titleEl.value=e.title||'';
+  titleEl.addEventListener('input',onInput);
+  editorBody.appendChild(titleEl);
+
+  const tagsEl=document.createElement('div');
+  tagsEl.id='tags-row';
+  editorBody.appendChild(tagsEl);
+
+  // 把 ql-container（即 tempDiv，現在已變成 .ql-container）移進 editorBody
+  const qlContainer=mount.querySelector('.ql-container');
+  editorBody.appendChild(qlContainer);
+
+  mount.appendChild(editorBody);
+  renderTagsRow(e.tags||[], pendingSuggestedTags[currentDate]||[]);
+
+  if(e.content)quill.clipboard.dangerouslyPasteHTML(e.content);  // content 可能在 lazy load 後才填入
+  quill.on('text-change',onInput);
+  // IME 組字時隱藏 placeholder，避免畫面重疊
+  quill.root.addEventListener('compositionstart',()=>quill.root.classList.add('ime-composing'));
+  quill.root.addEventListener('compositionend',()=>quill.root.classList.remove('ime-composing'));
+  renderWeatherLocation(e);
+  renderOtd();
+}
+
+// ── 節日 & 節氣 ──
+
+// 二十四節氣精確對照表（2024–2032）
+const JIEQI_TABLE={
+  '小寒':['2024-01-06','2025-01-05','2026-01-05','2027-01-06','2028-01-06','2029-01-05','2030-01-05','2031-01-06','2032-01-06'],
+  '大寒':['2024-01-20','2025-01-20','2026-01-20','2027-01-20','2028-01-21','2029-01-20','2030-01-20','2031-01-20','2032-01-21'],
+  '立春':['2024-02-04','2025-02-03','2026-02-04','2027-02-04','2028-02-04','2029-02-03','2030-02-04','2031-02-04','2032-02-04'],
+  '雨水':['2024-02-19','2025-02-18','2026-02-19','2027-02-19','2028-02-19','2029-02-18','2030-02-19','2031-02-19','2032-02-19'],
+  '驚蟄':['2024-03-05','2025-03-05','2026-03-06','2027-03-06','2028-03-05','2029-03-05','2030-03-06','2031-03-06','2032-03-05'],
+  '春分':['2024-03-20','2025-03-20','2026-03-20','2027-03-20','2028-03-20','2029-03-20','2030-03-20','2031-03-20','2032-03-20'],
+  '清明':['2024-04-04','2025-04-04','2026-04-05','2027-04-05','2028-04-04','2029-04-04','2030-04-05','2031-04-05','2032-04-04'],
+  '穀雨':['2024-04-19','2025-04-20','2026-04-20','2027-04-20','2028-04-19','2029-04-19','2030-04-20','2031-04-20','2032-04-19'],
+  '立夏':['2024-05-05','2025-05-05','2026-05-06','2027-05-06','2028-05-05','2029-05-05','2030-05-06','2031-05-06','2032-05-05'],
+  '小滿':['2024-05-20','2025-05-21','2026-05-21','2027-05-21','2028-05-20','2029-05-20','2030-05-21','2031-05-21','2032-05-20'],
+  '芒種':['2024-06-05','2025-06-05','2026-06-06','2027-06-06','2028-06-05','2029-06-05','2030-06-06','2031-06-06','2032-06-05'],
+  '夏至':['2024-06-21','2025-06-21','2026-06-21','2027-06-21','2028-06-21','2029-06-21','2030-06-21','2031-06-21','2032-06-20'],
+  '小暑':['2024-07-06','2025-07-07','2026-07-07','2027-07-07','2028-07-06','2029-07-06','2030-07-07','2031-07-07','2032-07-06'],
+  '大暑':['2024-07-22','2025-07-22','2026-07-23','2027-07-23','2028-07-22','2029-07-22','2030-07-23','2031-07-23','2032-07-22'],
+  '立秋':['2024-08-07','2025-08-07','2026-08-07','2027-08-07','2028-08-07','2029-08-07','2030-08-07','2031-08-07','2032-08-07'],
+  '處暑':['2024-08-22','2025-08-23','2026-08-23','2027-08-23','2028-08-22','2029-08-22','2030-08-23','2031-08-23','2032-08-22'],
+  '白露':['2024-09-07','2025-09-07','2026-09-08','2027-09-08','2028-09-07','2029-09-07','2030-09-08','2031-09-08','2032-09-07'],
+  '秋分':['2024-09-22','2025-09-23','2026-09-23','2027-09-23','2028-09-22','2029-09-22','2030-09-23','2031-09-23','2032-09-22'],
+  '寒露':['2024-10-08','2025-10-08','2026-10-08','2027-10-08','2028-10-07','2029-10-08','2030-10-08','2031-10-08','2032-10-07'],
+  '霜降':['2024-10-23','2025-10-23','2026-10-23','2027-10-23','2028-10-22','2029-10-23','2030-10-23','2031-10-23','2032-10-22'],
+  '立冬':['2024-11-07','2025-11-07','2026-11-07','2027-11-07','2028-11-06','2029-11-07','2030-11-07','2031-11-07','2032-11-06'],
+  '小雪':['2024-11-22','2025-11-22','2026-11-22','2027-11-22','2028-11-21','2029-11-22','2030-11-22','2031-11-22','2032-11-21'],
+  '大雪':['2024-12-06','2025-12-07','2026-12-07','2027-12-07','2028-12-06','2029-12-07','2030-12-07','2031-12-07','2032-12-06'],
+  '冬至':['2024-12-21','2025-12-22','2026-12-22','2027-12-22','2028-12-21','2029-12-21','2030-12-22','2031-12-22','2032-12-21'],
+};
+
+// 農曆節日精確對照表（2024–2032 國曆日期）
+const LUNAR_FESTIVALS={
+  '春節':  ['2024-02-10','2025-01-29','2026-02-17','2027-02-06','2028-01-26','2029-02-13','2030-02-03','2031-01-23','2032-02-11'],
+  '元宵節':['2024-02-24','2025-02-12','2026-03-03','2027-02-20','2028-02-09','2029-02-27','2030-02-17','2031-02-06','2032-02-25'],
+  '端午節':['2024-06-10','2025-05-31','2026-06-19','2027-06-09','2028-05-28','2029-06-16','2030-06-05','2031-05-26','2032-06-13'],
+  '七夕':  ['2024-08-10','2025-08-29','2026-08-19','2027-08-08','2028-08-26','2029-08-16','2030-08-05','2031-08-24','2032-08-12'],
+  '中元節':['2024-08-18','2025-09-06','2026-08-27','2027-08-16','2028-09-03','2029-08-24','2030-08-13','2031-09-01','2032-08-20'],
+  '中秋節':['2024-09-17','2025-10-06','2026-09-25','2027-09-15','2028-10-03','2029-09-22','2030-09-12','2031-10-01','2032-09-19'],
+  '重陽節':['2024-10-11','2025-10-29','2026-10-18','2027-10-08','2028-10-26','2029-10-15','2030-10-05','2031-10-24','2032-10-12'],
+};
+
+// 台灣國定假日（固定國曆，MM-DD）
+const FIXED_HOLIDAYS={
+  '01-01':'元旦','02-28':'和平紀念日','04-04':'兒童節',
+  '05-01':'勞動節','09-28':'教師節','10-10':'國慶日','12-25':'聖誕節',
+};
+
+function getDateInfo(ds){
+  if(!ds)return{festival:null,jieqi:null};
+  const year=parseInt(ds.slice(0,4));
+  const mmdd=ds.slice(5); // MM-DD
+  const yearIdx=year-2024;
+
+  // 1. 固定國定假日
+  if(FIXED_HOLIDAYS[mmdd])return{festival:FIXED_HOLIDAYS[mmdd],jieqi:null};
+
+  // 2. 農曆節日（查對照表，2024–2032）
+  if(yearIdx>=0&&yearIdx<=8){
+    for(const [name,dates] of Object.entries(LUNAR_FESTIVALS)){
+      if(dates[yearIdx]===ds)return{festival:name,jieqi:null};
+    }
+  }
+
+  // 3. 二十四節氣（查對照表，2024–2032）
+  if(yearIdx>=0&&yearIdx<=8){
+    for(const [name,dates] of Object.entries(JIEQI_TABLE)){
+      if(dates[yearIdx]===ds)return{festival:null,jieqi:name};
+    }
+  }
+
+  return{festival:null,jieqi:null};
+}
+
+// ── 天氣 & 地點渲染 ──
+const PIN_SVG=`<span class="pin-svg"><svg width="9" height="13" viewBox="0 0 10 14" fill="none"><path d="M5 0C2.24 0 0 2.24 0 5C0 8.75 5 14 5 14C5 14 10 8.75 10 5C10 2.24 7.76 0 5 0ZM5 6.5C4.17 6.5 3.5 5.83 3.5 5C3.5 4.17 4.17 3.5 5 3.5C5.83 3.5 6.5 4.17 6.5 5C6.5 5.83 5.83 6.5 5 6.5Z" fill="var(--accent-light)"/></svg></span>`;
+
+function renderWeatherLocation(e){
+  const row=document.getElementById('weather-location-row');
+  if(!row)return;
+  const isToday=(currentDate===todayStr());
+
+  // 已有儲存的天氣地點資料直接顯示
+  if(e.weather||e.location){
+    renderWLRow(row,e.weather||null,e.location||null);
+    return;
+  }
+  // 只有今天才自動抓取
+  if(!isToday){row.innerHTML='';return;}
+
+  // 顯示載入中
+  row.innerHTML=`<span class="wl-loading">取得天氣中...</span><span class="wl-divider" style="margin:0 2px;"></span><span class="wl-loading">定位中...</span>`;
+
+  let geoSettled=false;
+  // Hard fallback：3 秒內 geolocation 沒回應（sandbox 環境），直接用台北座標
+  const capturedDate=currentDate;
+  if(!capturedDate||!/^\d{4}-\d{2}-\d{2}$/.test(capturedDate))return;
+  window._geoFallbackTimer=setTimeout(async()=>{
+    if(geoSettled)return;
+    geoSettled=true;
+    window._geoFallbackTimer=null;
+    const weather=await fetchWeather(25.033,121.565);
+    if(weather&&capturedDate&&entries[capturedDate]){
+      entries[capturedDate].weather=weather;
+      await doSaveIndexOnly(capturedDate);
+      // 只有還在同一篇日記才更新畫面
+      if(currentDate===capturedDate){
+        const r=document.getElementById('weather-location-row');
+        if(r)renderWLRow(r,weather,entries[capturedDate].location||null,!entries[capturedDate].location);
+      }
+    }
+  },3000);
+  const settle=()=>{geoSettled=true;clearTimeout(window._geoFallbackTimer);window._geoFallbackTimer=null;};
+
+  // 嘗試定位
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(
+      async pos=>{
+        if(geoSettled)return;
+        settle();
+        const lat=pos.coords.latitude,lon=pos.coords.longitude;
+        const [weather,location]=await Promise.all([
+          fetchWeather(lat,lon),
+          fetchLocation(lat,lon)
+        ]);
+        if(capturedDate&&entries[capturedDate]){
+          if(weather)entries[capturedDate].weather=weather;
+          if(location)entries[capturedDate].location=location;
+          await doSaveIndexOnly(capturedDate);
+        }
+        if(currentDate===capturedDate){
+          const r=document.getElementById('weather-location-row');
+          if(r)renderWLRow(r,weather,location);
+        }
+      },
+      async ()=>{
+        if(geoSettled)return;
+        settle();
+        const weather=await fetchWeather(25.033,121.565);
+        if(weather&&capturedDate&&entries[capturedDate]){entries[capturedDate].weather=weather;await doSaveIndexOnly(capturedDate);}
+        if(currentDate===capturedDate){
+          const r=document.getElementById('weather-location-row');
+          if(r)renderWLRow(r,weather,null,true);
+        }
+      },
+      {timeout:5000}
+    );
+  } else {
+    settle();
+    renderWLRow(row,null,null,true);
+  }
+}
+
+function renderWLRow(row,weather,location,locationDenied=false){
+  if(!row)return;
+  let html='';
+  if(weather) html+=`<div class="wl-item"><span>${weather}</span></div>`;
+  if(weather&&(location||locationDenied||!location)) html+=`<span class="wl-divider"></span>`;
+  if(location){
+    html+=`<div class="wl-item">
+      <div class="location-wrap" id="loc-wrap" onclick="editLocation()">
+        ${PIN_SVG}
+        <span id="loc-text">${location}</span>
+        <span class="location-edit-hint">✎</span>
+      </div>
+    </div>`;
+  } else {
+    // 未授權或尚無地點：顯示可點擊輸入
+    html+=`<div class="wl-item">
+      ${PIN_SVG}
+      <span class="location-empty-hint" id="loc-empty" onclick="editLocationEmpty()">輸入地點...</span>
+    </div>`;
+  }
+  row.innerHTML=html;
+}
+
+function editLocation(){
+  const wrap=document.getElementById('loc-wrap');
+  const textEl=document.getElementById('loc-text');
+  if(!wrap||!textEl||wrap.querySelector('input'))return;
+  const cur=textEl.textContent;
+  const inp=document.createElement('input');
+  inp.className='location-input-inline';
+  inp.value=cur;
+  textEl.style.display='none';
+  wrap.querySelector('.location-edit-hint').style.display='none';
+  wrap.style.cursor='default';
+  wrap.appendChild(inp);
+  inp.focus();inp.select();
+  const confirm=async()=>{
+    const val=inp.value.trim();
+    const saved=val||cur;
+    textEl.textContent=saved;
+    textEl.style.display='';
+    wrap.querySelector('.location-edit-hint').style.display='';
+    wrap.style.cursor='pointer';
+    inp.remove();
+    if(entries[currentDate]){entries[currentDate].location=saved;await doSaveIndexOnly(currentDate);}
+  };
+  inp.addEventListener('blur',confirm);
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter')inp.blur();});
+}
+
+function editLocationEmpty(){
+  const emptyEl=document.getElementById('loc-empty');
+  if(!emptyEl)return;
+  const inp=document.createElement('input');
+  inp.className='location-input-inline';
+  inp.placeholder='輸入地點名稱';
+  emptyEl.replaceWith(inp);
+  inp.focus();
+  const confirm=async()=>{
+    const val=inp.value.trim();
+    if(val){
+      if(entries[currentDate]){entries[currentDate].location=val;await doSaveIndexOnly(currentDate);}
+      // 只替換地點元素，不重繪整列（避免天氣消失）
+      const locItem=inp.closest('.wl-item');
+      if(locItem){
+        locItem.innerHTML='<div class="location-wrap" id="loc-wrap" onclick="editLocation()">'+PIN_SVG+'<span id="loc-text">'+val+'</span><span class="location-edit-hint">✎</span></div>';
+      }
+    } else {
+      // 沒輸入，還原提示文字
+      const locItem=inp.closest('.wl-item');
+      if(locItem){
+        locItem.innerHTML=PIN_SVG+'<span class="location-empty-hint" id="loc-empty" onclick="editLocationEmpty()">輸入地點...</span>';
+      }
+    }
+  };
+  inp.addEventListener('blur',confirm);
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter')inp.blur();});
+}
+
+async function fetchWeather(lat,lon){
+  try{
+    const url=`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weathercode&timezone=auto`;
+    const r=await fetch(url);const d=await r.json();
+    const temp=Math.round(d.current.temperature_2m);
+    const code=d.current.weathercode;
+    const desc=weatherDesc(code);
+    return`${desc.emoji} ${temp}° ${desc.text}`;
+  }catch(e){return null;}
+}
+
+function weatherDesc(code){
+  if(code===0)return{emoji:'☀️',text:'晴'};
+  if(code<=2)return{emoji:'⛅',text:'多雲'};
+  if(code===3)return{emoji:'☁️',text:'陰'};
+  if(code<=49)return{emoji:'🌫️',text:'霧'};
+  if(code<=59)return{emoji:'🌦️',text:'毛毛雨'};
+  if(code<=69)return{emoji:'🌧️',text:'雨'};
+  if(code<=79)return{emoji:'🌨️',text:'雪'};
+  if(code<=84)return{emoji:'🌧️',text:'陣雨'};
+  if(code<=99)return{emoji:'⛈️',text:'雷雨'};
+  return{emoji:'🌡️',text:''};
+}
+
+async function fetchLocation(lat,lon){
+  try{
+    const url=`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=zh-TW`;
+    const r=await fetch(url,{headers:{'Accept-Language':'zh-TW'}});
+    const d=await r.json();
+    // 優先顯示景點/商場名，否則顯示區+市
+    const a=d.address||{};
+    return a.tourism||a.amenity||a.leisure||a.shop||a.building||
+           [a.suburb||a.neighbourhood||a.quarter||a.city_district,a.city||a.town].filter(Boolean).join('，')||
+           d.display_name?.split(',')[0]||null;
+  }catch(e){return null;}
+}
+
+function renderTagsRow(tags, suggestedTags){
+  const row=document.getElementById('tags-row');if(!row)return;
+  const suggested=(suggestedTags||[]).filter(t=>!(tags||[]).includes(t));
+  const confirmedHtml=(tags||[]).map(t=>`<span class="tag-chip" onclick="removeTag('${t}')">${t} ×</span>`).join('');
+  const suggestedHtml=suggested.map(t=>`<span class="tag-chip-suggested" onclick="acceptSuggestedTag('${t}')" title="點擊加入">＋ ${t}<span class="tag-x" onclick="event.stopPropagation();dismissSuggestedTag('${t}')">×</span></span>`).join('');
+  row.innerHTML=confirmedHtml+suggestedHtml+`<span class="tag-add" onclick="addTagPrompt()">＋ 標籤</span>`;
+}
+function renderOtd(){
+  if(!currentDate)return;
+  const mmdd=currentDate.slice(5),curYear=parseInt(currentDate.slice(0,4));
+  const past=Object.keys(entries).filter(ds=>ds.slice(5)===mmdd&&parseInt(ds.slice(0,4))<curYear).sort((a,b)=>b.localeCompare(a));
+  const eb=document.querySelector('.editor-bottom');
+  const ex=document.getElementById('otd-wrap');if(ex)ex.remove();
+  if(!past.length||!eb)return;
+  const items=past.map(ds=>{
+    const e=entries[ds];
+    const title=e.title||getPlain(e.content).slice(0,40)||'（無內容）';
+    const plain=getPlain(e.content);
+    const preview=plain.slice(0,80);
+    return `<div class="otd-item">
+      <div class="otd-year">${ds.slice(0,4)} 年</div>
+      <div class="otd-title">${title}</div>
+      ${preview?`<div class="otd-preview">${preview}${plain.length>80?'…':''}</div>`:''}
+      <button class="otd-read" onclick="openEntry('${ds}')">閱讀全文 →</button>
+    </div>`;
+  }).join('');
+  const div=document.createElement('div');
+  div.className='otd-wrap';div.id='otd-wrap';
+
+  const header=document.createElement('div');
+  header.className='otd-header';
+  header.innerHTML='<span class="otd-left-bar"></span><span class="otd-toggle-label">今日回顧</span><span class="otd-toggle-arrow" id="otd-arrow">↓</span>';
+
+  const body=document.createElement('div');
+  body.className='otd-body';
+  body.style.display='none';
+  body.innerHTML=items;
+
+  header.addEventListener('click',()=>{
+    const open=body.style.display==='none';
+    body.style.display=open?'block':'none';
+    document.getElementById('otd-arrow').textContent=open?'↑':'↓';
+  });
+
+  div.appendChild(header);
+  div.appendChild(body);
+  eb.insertBefore(div,eb.firstChild);
+}
+
+function onInput(){setSaveStatus('saving');clearTimeout(autoSaveTimer);autoSaveTimer=setTimeout(()=>doSave(),1500);}
+function setSaveStatus(s){const el=document.getElementById('save-status');if(!el)return;if(s==='saving'){el.textContent='儲存中...';el.className='save-status saving';}else if(s==='saved'){el.textContent='已儲存';el.className='save-status';}else{el.textContent='';el.className='save-status';}}
+
+
+// 只更新 index 單筆（天氣、地點等 metadata 異動時用）
+async function doSaveIndexOnly(ds){
+  if(!ds||ds==='null'||!/^\d{4}-\d{2}-\d{2}$/.test(ds)||!entries[ds])return;
+  const e=entries[ds];
+  await callGAS('writeIndex',{date:ds,entry:{
+    title:e.title||'',
+    preview:getPlain(e.content||'').slice(0,100),
+    tags:e.tags||[],
+    mood:e.mood||'',
+    weather:e.weather||'',
+    location:e.location||''
+  }});
+}
+async function doSave(){
+  if(!currentDate||currentDate==='null'||!/^\d{4}-\d{2}-\d{2}$/.test(currentDate))return;
+  if(!entries[currentDate])entries[currentDate]={title:'',content:'',tags:[],mood:'',weather:'',location:''};
+  const ti=document.getElementById('title-input');if(ti)entries[currentDate].title=ti.value;
+  if(quill)entries[currentDate].content=quill.root.innerHTML;
+  // 防呆：標題和內文都是空的，不儲存並移除空殼
+  const isEmpty=!(entries[currentDate].title?.trim())&&!getPlain(entries[currentDate].content||'').trim();
+  if(isEmpty){
+    delete entries[currentDate];
+    lsDel(CACHE_PREFIX+currentDate);
+    await callGAS('deleteEntry',{date:currentDate});
+    renderEntryList();renderCal();setSaveStatus('');return;
+  }
+  await saveEntries();setSaveStatus('saved');renderEntryList();renderCal();
+  setTimeout(()=>setSaveStatus(''),2500);
+}
+
+function addTagPrompt(){
+  const used=new Set();
+  Object.values(entries).forEach(e=>(e.tags||[]).forEach(t=>used.add(t)));
+  const currentTags=entries[currentDate]?.tags||[];
+  const available=[...used].filter(t=>!currentTags.includes(t)).sort();
+
+  const old=document.getElementById('tag-picker');
+  if(old)old.remove();
+
+  const picker=document.createElement('div');
+  picker.id='tag-picker';
+  picker.style.cssText='position:fixed;z-index:9999;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:8px;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,0.5);';
+
+  const row=document.getElementById('tags-row');
+  if(row){
+    const r=row.getBoundingClientRect();
+    picker.style.top=(r.bottom+4)+'px';
+    picker.style.left=r.left+'px';
+  }
+
+  // 已有標籤區
+  if(available.length){
+    const label=document.createElement('div');
+    label.textContent='選擇已有標籤';
+    label.style.cssText='font-size:var(--fs-small);color:var(--text-muted);padding:0 4px 6px;';
+    picker.appendChild(label);
+    available.forEach(t=>{
+      const item=document.createElement('div');
+      item.className='tag-picker-item';
+      item.textContent=t;
+      item.onclick=()=>selectExistingTag(t);
+      picker.appendChild(item);
+    });
+    const divider=document.createElement('div');
+    divider.style.cssText='border-top:1px solid var(--border);margin:6px 0;';
+    picker.appendChild(divider);
+  }
+
+  // 新增標籤區
+  const newLabel=document.createElement('div');
+  newLabel.textContent='新增標籤';
+  newLabel.style.cssText='font-size:var(--fs-small);color:var(--text-muted);padding:0 4px 4px;';
+  picker.appendChild(newLabel);
+
+  const row2=document.createElement('div');
+  row2.style.cssText='display:flex;gap:6px;';
+
+  const inp=document.createElement('input');
+  inp.id='tag-new-input';
+  inp.type='text';
+  inp.placeholder='輸入標籤名稱';
+  inp.style.cssText='flex:1;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:var(--fs-btn);color:var(--text-title);font-family:inherit;outline:none;';
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter')confirmNewTag();});
+
+  const btn=document.createElement('button');
+  btn.textContent='加入';
+  btn.style.cssText='background:var(--accent);border:none;border-radius:4px;padding:4px 10px;font-size:var(--fs-small);color:var(--text-title);cursor:pointer;font-family:inherit;';
+  btn.onclick=confirmNewTag;
+
+  row2.appendChild(inp);
+  row2.appendChild(btn);
+  picker.appendChild(row2);
+
+  document.body.appendChild(picker);
+
+  setTimeout(()=>{
+    inp.focus();
+    document.addEventListener('click',function close(ev){
+      if(!picker.contains(ev.target)){
+        picker.remove();
+        document.removeEventListener('click',close);
+      }
+    },true);
+  },10);
+}
+
+function selectExistingTag(t){
+  const old=document.getElementById('tag-picker');if(old)old.remove();
+  if(!entries[currentDate])entries[currentDate]={title:'',content:'',tags:[],mood:''};
+  if(!(entries[currentDate].tags||[]).includes(t)){
+    entries[currentDate].tags=[...(entries[currentDate].tags||[]),t];
+    renderTagsRow(entries[currentDate].tags, pendingSuggestedTags[currentDate]||[]);
+    onInput();
+  }
+}
+
+function confirmNewTag(){
+  const inp=document.getElementById('tag-new-input');
+  const t=inp?.value?.trim();
+  if(!t)return;
+  const old=document.getElementById('tag-picker');if(old)old.remove();
+  if(!entries[currentDate])entries[currentDate]={title:'',content:'',tags:[],mood:''};
+  if(!(entries[currentDate].tags||[]).includes(t)){
+    entries[currentDate].tags=[...(entries[currentDate].tags||[]),t];
+    renderTagsRow(entries[currentDate].tags, pendingSuggestedTags[currentDate]||[]);
+    onInput();
+  }
+}
+
+function jumpToTag(t){
+  activeFilterTag=t;
+  showTagsPage();
+}
+function removeTag(t){if(!currentDate||!entries[currentDate])return;entries[currentDate].tags=(entries[currentDate].tags||[]).filter(x=>x!==t);renderTagsRow(entries[currentDate].tags, pendingSuggestedTags[currentDate]||[]);onInput();}
+async function deleteEntry(ds){
+  if(!confirm('確定要刪除這篇日記？'))return;
+  delete entries[ds];
+  lsDel(CACHE_PREFIX+ds);
+  // 先更新畫面，背景執行 Drive 刪除
+  lsSet(INDEX_CACHE_KEY, JSON.stringify(entries));
+  if(currentDate===ds)showListPage();
+  else{renderEntryList();renderListPage();renderCal();}
+  callGAS('deleteEntry',{date:ds}); // 不 await
+}
+function deleteCurrentEntry(){if(currentDate)deleteEntry(currentDate);}
+
+function acceptSuggestedTag(t){
+  if(!currentDate||!entries[currentDate])return;
+  // 從待確認移除
+  if(pendingSuggestedTags[currentDate])
+    pendingSuggestedTags[currentDate]=pendingSuggestedTags[currentDate].filter(x=>x!==t);
+  // 加入正式 tag
+  if(!(entries[currentDate].tags||[]).includes(t)){
+    entries[currentDate].tags=[...(entries[currentDate].tags||[]),t];
+    doSave();
+  }
+  renderTagsRow(entries[currentDate].tags, pendingSuggestedTags[currentDate]||[]);
+}
+
+function dismissSuggestedTag(t){
+  if(!currentDate)return;
+  if(pendingSuggestedTags[currentDate])
+    pendingSuggestedTags[currentDate]=pendingSuggestedTags[currentDate].filter(x=>x!==t);
+  renderTagsRow(entries[currentDate]?.tags||[], pendingSuggestedTags[currentDate]||[]);
+}
+
+async function saveAndAnalyze(){
+  const btn=document.getElementById('analyze-btn');
+  if(btn){btn.disabled=true;btn.textContent='分析中...';}
+  await doSave();
+  await analyzeMood();
+  if(btn){btn.disabled=false;btn.textContent='✨ 儲存並分析';}
+}
+
+async function analyzeMood(){
+  if(!currentDate||!entries[currentDate])return;
+  const content=getPlain(entries[currentDate].content||''),title=entries[currentDate].title||'';
+  if(!content&&!title)return;
+  try{
+    const system='你是日記情緒分析助手，使用繁體中文。只輸出 JSON，格式：{"mood":"emoji+2-4字","tags":["標籤1","標籤2"]}，不要其他文字。';
+    const prompt=`標題：${title}\n內容：${content.slice(0,500)}`;
+    const data=await callGAS('gemini',{system,prompt});
+    if(data.quota){
+      const mv=document.getElementById('mood-val');
+      if(mv){mv.textContent='今日配額已用盡';mv.style.opacity='0.5';}
+      return;
+    }
+    const parsed=JSON.parse((data.text||'').replace(/```json|```/g,'').trim());
+    if(parsed.mood&&entries[currentDate]){
+      entries[currentDate].mood=parsed.mood;
+      // mood 只更新 index，不需重寫 .md
+      await callGAS('writeIndex',{date:currentDate,entry:{
+        title:entries[currentDate].title||'',
+        preview:getPlain(entries[currentDate].content||'').slice(0,100),
+        tags:entries[currentDate].tags||[],
+        mood:parsed.mood,
+        weather:entries[currentDate].weather||'',
+        location:entries[currentDate].location||''
+      }});
+      const mv=document.getElementById('mood-val');if(mv){mv.textContent=parsed.mood;mv.style.opacity='1';}
+    }
+    if(parsed.tags&&parsed.tags.length&&entries[currentDate]){
+      const ex=entries[currentDate].tags||[];
+      const newSuggested=parsed.tags.filter(t=>!ex.includes(t)).slice(0,3);
+      if(newSuggested.length){
+        pendingSuggestedTags[currentDate]=newSuggested;
+        renderTagsRow(entries[currentDate].tags, newSuggested);
+      }
+    }
+  }catch(e){}
+}
+
+function showImageComingSoon(){
+  const bar=document.getElementById('ai-bar');
+  if(!bar)return;
+  const d=document.createElement('div');
+  d.className='ai-question';
+  const t=document.createElement('span');
+  t.style.flex='1';
+  t.style.color='var(--text-muted)';
+  t.textContent='🖼 圖片功能即將推出，敬請期待。';
+  const x=document.createElement('span');
+  x.className='ai-q-close';
+  x.textContent='×';
+  x.onclick=()=>bar.innerHTML='';
+  d.appendChild(t);d.appendChild(x);
+  bar.innerHTML='';bar.appendChild(d);
+}
+function insertTimestamp(){
+  if(!quill)return;
+  const now=new Date();
+  const hh=String(now.getHours()).padStart(2,'0');
+  const mm=String(now.getMinutes()).padStart(2,'0');
+  const dashes='-------';
+  const timeStr=dashes+' '+hh+':'+mm+' '+dashes;
+  const range=quill.getSelection(true);
+  const pos=range?range.index:quill.getLength();
+  quill.insertText(pos,String.fromCharCode(10),'user');
+  quill.insertText(pos+1,timeStr,'user');
+  quill.insertText(pos+1+timeStr.length,String.fromCharCode(10),'user');
+  quill.setSelection(pos+2+timeStr.length,0);
+  onInput();
+}
+
+async function askAI(){
+  const content=quill?quill.root.innerText.trim():'';
+  const bar=document.getElementById('ai-bar');
+  if(bar)bar.innerHTML=`<div class="ai-question"><span style="opacity:0.6;">思考中...</span></div>`;
+  try{
+    const system='你是日記寫作引導助手，使用繁體中文。根據日記內容提出一個溫和、具體、能幫助深入反思的問題。只輸出問題本身。';
+    const prompt=content?`我的日記：「${content.slice(0,400)}」`:'我剛開始寫今天的日記，幫我引導。';
+    const data=await callGAS('gemini',{system,prompt});
+    if(data.quota){
+      if(bar)bar.innerHTML=`<div class="ai-question" style="color:var(--text-muted);">💤 今日 AI 配額已用盡，明天再試。</div>`;
+      return;
+    }
+    const q=data.text?.trim()||'';
+    if(q&&bar)bar.innerHTML=`<div class="ai-question"><span style="flex:1;">${q}</span><span class="ai-q-close" onclick="document.getElementById('ai-bar').innerHTML=''">×</span></div>`;
+  }catch(e){if(bar)bar.innerHTML=`<div class="ai-question" style="color:var(--text-muted);">AI 暫時無法連線。</div>`;}
+}
+
+
+let activeFilterTag=null;
+
+function showTagsPage(){
+  currentDate=null;
+  document.getElementById('list-page').style.display='none';
+  document.getElementById('editor-page').style.display='none';
+  document.getElementById('settings-page').style.display='none';
+  document.getElementById('tags-page').style.cssText='flex:1;display:flex;flex-direction:column;overflow:hidden;';
+  document.getElementById('topbar-title').textContent='標籤管理';
+  renderTagsPage();
+}
+
+function renderTagsPage(){
+  // 收集所有標籤及出現次數
+  const tagMap={};
+  Object.values(entries).forEach(e=>{
+    (e.tags||[]).forEach(t=>{tagMap[t]=(tagMap[t]||0)+1;});
+  });
+  const allTags=Object.keys(tagMap).sort();
+
+  // filter bar
+  const fb=document.getElementById('tag-filter-bar');
+  if(allTags.length===0){
+    fb.innerHTML='<span style="font-size:var(--fs-small);color:var(--text-muted);">尚無標籤</span>';
+    document.getElementById('tag-filtered-list').innerHTML='';
+    return;
+  }
+  fb.innerHTML=`<button class="tag-filter-all ${activeFilterTag===null?'active':''}" onclick="filterByTag(null)">全部</button>`
+    +allTags.map(t=>`<button class="tag-filter-chip ${activeFilterTag===t?'active':''}" onclick="filterByTag('${t}')">${t} <span style="opacity:0.6;">${tagMap[t]}</span></button>`).join('');
+
+  // 標籤管理列表
+  const container=document.getElementById('tag-filtered-list');
+  if(activeFilterTag!==null){
+    // 篩選後顯示日記列表
+    const matched=Object.keys(entries).filter(ds=>(entries[ds].tags||[]).includes(activeFilterTag)).sort((a,b)=>b.localeCompare(a));
+    if(!matched.length){container.innerHTML='<div style="padding:20px 16px;font-size:var(--fs-btn);color:var(--text-muted);">沒有符合的日記</div>';return;}
+    let html='<div style="padding:8px 16px 4px;font-size:var(--fs-small);color:var(--text-muted);">共 '+matched.length+' 篇日記</div>';
+    matched.forEach(ds=>{
+      const e=entries[ds],plain=getPlain(e.content);
+      html+=`<div class="list-card" onclick="openEntry('${ds}')">
+        <div class="list-card-left"><div class="list-card-dow">${fmtDow(ds)}</div><div class="list-card-day">${parseInt(ds.slice(8))}</div></div>
+        <div class="list-card-body">
+          ${e.title?`<div class="list-card-title">${e.title}</div>`:''}
+          ${plain?`<div class="list-card-preview">${plain.slice(0,100)}</div>`:''}
+        </div>
+      </div>`;
+    });
+    container.innerHTML=html;
+  } else {
+    // 全部標籤的管理介面
+    let html='<div class="tag-mgmt-list">';
+    allTags.forEach(t=>{
+      html+=`<div class="tag-mgmt-item">
+        <span class="tag-mgmt-name">${t}</span>
+        <span class="tag-mgmt-count">${tagMap[t]} 篇</span>
+        <button class="tag-mgmt-rename" onclick="renameTag('${t}')">重新命名</button>
+        <button class="tag-mgmt-del" onclick="deleteTag('${t}')">✕</button>
+      </div>`;
+    });
+    html+='</div>';
+    container.innerHTML=html;
+  }
+}
+
+function filterByTag(t){
+  activeFilterTag=t;
+  renderTagsPage();
+}
+
+async function renameTag(oldName){
+  const newName=prompt('重新命名標籤：', oldName);
+  if(!newName||!newName.trim()||newName.trim()===oldName)return;
+  const n=newName.trim();
+  // 檢查目標名稱是否已存在
+  const allTags=new Set();
+  Object.values(entries).forEach(e=>(e.tags||[]).forEach(t=>allTags.add(t)));
+  if(allTags.has(n)){
+    if(!confirm(`標籤「${n}」已存在，確定要將「${oldName}」合併進去嗎？`))return;
+  }
+  Object.keys(entries).forEach(ds=>{
+    const tags=entries[ds].tags||[];
+    if(tags.includes(oldName)){
+      // 用目標名稱取代，並去重
+      const merged=[...new Set(tags.map(t=>t===oldName?n:t))];
+      entries[ds].tags=merged;
+    }
+  });
+  // 批次更新所有受影響日記的 index
+  const affected=Object.keys(entries).filter(ds=>(entries[ds].tags||[]).includes(n)||(entries[ds].tags||[]).includes(oldName));
+  await Promise.all(affected.map(ds=>callGAS('writeIndex',{date:ds,entry:{
+    title:entries[ds].title||'',preview:getPlain(entries[ds].content||'').slice(0,100),
+    tags:entries[ds].tags||[],mood:entries[ds].mood||'',weather:entries[ds].weather||'',location:entries[ds].location||''
+  }})));
+  renderTagsPage();
+}
+
+async function deleteTag(name){
+  if(!confirm(`確定要刪除標籤「${name}」？
+（不會刪除日記本身）`))return;
+  Object.keys(entries).forEach(ds=>{
+    entries[ds].tags=(entries[ds].tags||[]).filter(t=>t!==name);
+  });
+  if(activeFilterTag===name)activeFilterTag=null;
+  // 批次更新所有受影響日記的 index
+  const affected=Object.keys(entries).filter(ds=>(entries[ds].tags||[]).length>=0);
+  await Promise.all(affected.map(ds=>callGAS('writeIndex',{date:ds,entry:{
+    title:entries[ds].title||'',preview:getPlain(entries[ds].content||'').slice(0,100),
+    tags:entries[ds].tags||[],mood:entries[ds].mood||'',weather:entries[ds].weather||'',location:entries[ds].location||''
+  }})));
+  renderTagsPage();
+}
+
+// ── 暫代測試資料：測試完可移除此函式與 init() 中的呼叫 ──
+
+
+// ── 設定頁 ──
+function showSettingsPage(){
+  currentDate=null;
+  document.getElementById('list-page').style.display='none';
+  document.getElementById('editor-page').style.display='none';
+  document.getElementById('tags-page').style.display='none';
+  document.getElementById('settings-page').style.cssText='flex:1;display:flex;flex-direction:column;overflow:hidden;';
+  document.getElementById('topbar-title').textContent='設定';
+  renderSettingsPage();
+}
+
+function renderSettingsPage(){
+  // 同步字型大小
+  document.querySelectorAll('#settings-page .seg-control').forEach(ctrl=>{
+    const btns=ctrl.querySelectorAll('.seg-btn');
+    btns.forEach(b=>b.classList.remove('active'));
+  });
+  const fsMap={small:0,medium:1,large:2};
+  const lhMap={compact:0,normal:1,loose:2};
+  const fsCtrls=document.querySelectorAll('#settings-page .seg-control');
+  if(fsCtrls[0]) fsCtrls[0].querySelectorAll('.seg-btn')[fsMap[appSettings.fontSize]]?.classList.add('active');
+  if(fsCtrls[1]) fsCtrls[1].querySelectorAll('.seg-btn')[lhMap[appSettings.lineHeight]]?.classList.add('active');
+  // 同步 AI 開關
+  const tw=document.getElementById('toggle-writing');
+  const tm=document.getElementById('toggle-mood');
+  if(tw)tw.checked=appSettings.aiWriting;
+  if(tm)tm.checked=appSettings.aiMood;
+  // 同步主題色點
+  const themeKey=document.body.className.replace('theme-','')||'';
+  ['sdot-gray','sdot-warm','sdot-teal'].forEach(id=>document.getElementById(id)?.classList.remove('active'));
+  const dotId={'':'sdot-gray','warm':'sdot-warm','teal':'sdot-teal'}[themeKey]??'sdot-gray';
+  document.getElementById(dotId)?.classList.add('active');
+}
+
+function loadSettings(){
+  try{
+    const v=lsGet(SETK);
+    if(v) appSettings=Object.assign(appSettings,JSON.parse(v));
+  }catch(e){}
+  applyFontSize(appSettings.fontSize);
+  applyLineHeight(appSettings.lineHeight);
+  applyAISettings();
+}
+
+function saveSettings(){
+  appSettings.aiWriting=document.getElementById('toggle-writing')?.checked??true;
+  appSettings.aiMood=document.getElementById('toggle-mood')?.checked??true;
+  lsSet(SETK,JSON.stringify(appSettings));
+  applyAISettings();
+}
+
+function applyAISettings(){
+  const askBtn=document.querySelector('.ai-btn');
+  const analyzeBtn=document.getElementById('analyze-btn');
+  const moodBar=document.querySelector('.mood-bar');
+  if(askBtn)askBtn.style.display=appSettings.aiWriting?'':'none';
+  if(analyzeBtn)analyzeBtn.style.display=appSettings.aiMood?'':'none';
+  if(moodBar)moodBar.style.display=appSettings.aiMood?'':'none';
+}
+
+const fontSizeMap={
+  small:{title:'16px',subtitle:'13px',body:'12px',btn:'11px',small:'10px'},
+  medium:{title:'18px',subtitle:'15px',body:'14px',btn:'13px',small:'12px'},
+  large:{title:'21px',subtitle:'17px',body:'16px',btn:'15px',small:'13px'},
+};
+function setFontSize(size){
+  appSettings.fontSize=size;
+  applyFontSize(size);
+  // 更新 seg-btn active 狀態
+  const ctrl=document.querySelectorAll('#settings-page .seg-control')[0];
+  if(ctrl){ctrl.querySelectorAll('.seg-btn').forEach((b,i)=>b.classList.toggle('active',['small','medium','large'][i]===size));}
+  lsSet(SETK,JSON.stringify(appSettings));
+}
+function applyFontSize(size){
+  const m=fontSizeMap[size]||fontSizeMap.medium;
+  const r=document.documentElement.style;
+  r.setProperty('--fs-title',m.title);
+  r.setProperty('--fs-subtitle',m.subtitle);
+  r.setProperty('--fs-body',m.body);
+  r.setProperty('--fs-btn',m.btn);
+  r.setProperty('--fs-small',m.small);
+}
+
+const lineHeightMap={compact:'1.5',normal:'1.8',loose:'2.2'};
+function setLineHeight(lh){
+  appSettings.lineHeight=lh;
+  applyLineHeight(lh);
+  const ctrl=document.querySelectorAll('#settings-page .seg-control')[1];
+  if(ctrl){ctrl.querySelectorAll('.seg-btn').forEach((b,i)=>b.classList.toggle('active',['compact','normal','loose'][i]===lh));}
+  lsSet(SETK,JSON.stringify(appSettings));
+}
+function applyLineHeight(lh){
+  const val=lineHeightMap[lh]||'1.8';
+  document.documentElement.style.setProperty('--editor-line-height',val);
+  // 直接更新 Quill editor 行距
+  document.querySelectorAll('.ql-editor').forEach(el=>el.style.lineHeight=val);
+}
+
+function exportEntries(){
+  const sorted=Object.keys(entries).sort();
+  if(!sorted.length){alert('沒有可匯出的日記');return;}
+  let md='';
+  sorted.forEach(ds=>{
+    const e=entries[ds];
+    md+=`# ${e.title||ds}\n`;
+    md+=`Date: ${ds}\n`;
+    if(e.tags&&e.tags.length)md+=`Tags: ${e.tags.join(', ')}\n`;
+    if(e.mood)md+=`Mood: ${e.mood}\n`;
+    md+='\n';
+    md+=getPlain(e.content||'')+'\n\n---\n\n';
+  });
+  const blob=new Blob([md],{type:'text/markdown'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='memoire-export.md';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ── 搜尋 ──
+let currentSearch=null;
+
+function onSearchKey(e){
+  if(e.key!=='Enter')return;
+  const q=document.getElementById('search-box').value.trim();
+  if(!q){clearSearch();return;}
+  currentSearch=q;
+  showSearchResults(q);
+}
+
+function showSearchResults(q){
+  // 切換 topbar 顯示
+  const titleEl=document.getElementById('topbar-title');
+  const stateEl=document.getElementById('search-state');
+  const countEl=document.getElementById('search-count');
+  const queryLabel=document.getElementById('search-query-label');
+  titleEl.style.display='none';
+  stateEl.style.display='flex';
+  queryLabel.textContent=q;
+
+  // 切換主區域
+  document.getElementById('editor-page').style.display='none';
+  document.getElementById('tags-page').style.display='none';
+  document.getElementById('settings-page').style.display='none';
+  const page=document.getElementById('list-page');
+  page.style.cssText='flex:1;overflow-y:auto;display:flex;flex-direction:column;';
+
+  // AND 搜尋：空格分割多關鍵字，全部要符合
+  const keywords=q.split(/\s+/).filter(Boolean).map(k=>k.toLowerCase());
+
+  const matched=Object.keys(entries).filter(ds=>{
+    const e=entries[ds];
+    const haystack=[
+      e.title||'',
+      getPlain(e.content||''),
+      (e.tags||[]).join(' ')
+    ].join(' ').toLowerCase();
+    return keywords.every(k=>haystack.includes(k));
+  }).sort((a,b)=>b.localeCompare(a));
+
+  countEl.style.display='inline';
+  countEl.textContent=matched.length+' 篇';
+
+  if(!matched.length){
+    page.innerHTML=`<div class="list-empty"><div style="font-size:32px;opacity:0.3;">🔍</div><div style="font-size:var(--fs-btn);">找不到符合「${q}」的日記</div></div>`;
+    return;
+  }
+
+  // 高亮函式
+  function highlight(text){
+    if(!text)return '';
+    let result=text;
+    keywords.forEach(k=>{
+      const re=new RegExp(k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi');
+      result=result.replace(re,m=>`<span class="search-highlight">${m}</span>`);
+    });
+    return result;
+  }
+
+  const groups={};
+  matched.forEach(ds=>{const g=fmtMG(ds);if(!groups[g])groups[g]=[];groups[g].push(ds);});
+  let html=`<div class="search-result-count">找到 ${matched.length} 篇日記</div>`;
+  Object.keys(groups).forEach(g=>{
+    html+=`<div class="list-month-group"><div class="list-month-label">${g}</div><div class="list-cards-wrap">`;
+    groups[g].forEach(ds=>{
+      const e=entries[ds];
+      const plain=getPlain(e.content||'');
+      const hasTitle=!!(e.title&&e.title.trim());
+      const tags=(e.tags||[]).map(t=>`<span class="list-card-tag">${highlight(t)}</span>`).join('');
+      const metaParts=[];
+      if(e.weather)metaParts.push(`<span class="lc-meta-item">${e.weather}</span>`);
+      if(e.location)metaParts.push(`<span class="lc-meta-item">${e.location}</span>`);
+      if(e.mood)metaParts.push(`<span class="lc-meta-item">${e.mood}</span>`);
+      const metaHtml=metaParts.join('<span class="lc-meta-dot">·</span>');
+      const bottomRow=(metaHtml?(metaHtml+(tags?'<span class="lc-meta-dot">·</span>'+tags:'')):(tags||''));
+      html+=`<div class="list-card" onclick="openEntry('${ds}')">
+        <div class="list-card-left">
+          <div class="list-card-dow">${fmtDow(ds)}</div>
+          <div class="list-card-day">${parseInt(ds.slice(8))}</div>
+        </div>
+        <div class="list-card-divider"></div>
+        <div class="list-card-body">
+          ${hasTitle?`<div class="list-card-title">${highlight(e.title)}</div>`:''}
+          ${plain?`<div class="list-card-preview">${highlight(plain.slice(0,120))}</div>`:(hasTitle?'':`<div class="list-card-preview" style="opacity:0.4;">（無內容）</div>`)}
+          ${bottomRow?`<div class="list-card-tags">${bottomRow}</div>`:''}
+        </div>
+      </div>`;
+    });
+    html+=`</div></div>`;
+  });
+  page.innerHTML=html;
+}
+
+function clearSearch(){
+  currentSearch=null;
+  document.getElementById('search-box').value='';
+  const titleEl=document.getElementById('topbar-title');
+  const stateEl=document.getElementById('search-state');
+  const countEl=document.getElementById('search-count');
+  titleEl.style.display='';
+  stateEl.style.display='none';
+  countEl.style.display='none';
+  showListPage();
+}
+
+function showOtdPage(){
+  currentDate=null;
+  activeFilterTag=null;
+  currentSearch=null;
+  document.getElementById('search-box').value='';
+  document.getElementById('search-state').style.display='none';
+  document.getElementById('search-count').style.display='none';
+  document.getElementById('topbar-title').style.display='none';
+
+  document.getElementById('editor-page').style.display='none';
+  document.getElementById('tags-page').style.display='none';
+  document.getElementById('settings-page').style.display='none';
+  const page=document.getElementById('list-page');
+  page.style.cssText='flex:1;overflow-y:auto;display:flex;flex-direction:column;';
+
+  const today=todayStr();
+  const mmdd=today.slice(5);
+  const curYear=parseInt(today.slice(0,4));
+
+  // 過去所有同月同日（不含今年）
+  const matched=Object.keys(entries)
+    .filter(ds=>ds.slice(5)===mmdd && parseInt(ds.slice(0,4))<curYear)
+    .sort((a,b)=>b.localeCompare(a));
+
+  // topbar 顯示
+  const titleEl=document.getElementById('topbar-title');
+  titleEl.style.display='none';
+  document.getElementById('otd-state').style.display='flex';
+  document.getElementById('otd-state-label').textContent='今日回顧 · '+mmdd.replace('-','/');
+
+  if(!matched.length){
+    page.innerHTML=`<div class="list-empty"><div style="font-size:32px;opacity:0.3;">📅</div><div style="font-size:var(--fs-btn);">過去的今天還沒有日記</div></div>`;
+    return;
+  }
+
+  const groups={};
+  matched.forEach(ds=>{const g=fmtMG(ds);if(!groups[g])groups[g]=[];groups[g].push(ds);});
+  let html=`<div class="search-result-count">共 ${matched.length} 篇</div>`;
+  Object.keys(groups).forEach(g=>{
+    html+=`<div class="list-month-group"><div class="list-month-label">${g}</div><div class="list-cards-wrap">`;
+    groups[g].forEach(ds=>{
+      const e=entries[ds];
+      const plain=getPlain(e.content||'');
+      const hasTitle=!!(e.title&&e.title.trim());
+      const tags=(e.tags||[]).map(t=>`<span class="list-card-tag" onclick="event.stopPropagation();jumpToTag('${t}')">${t}</span>`).join('');
+      const metaParts=[];
+      if(e.weather)metaParts.push(`<span class="lc-meta-item">${e.weather}</span>`);
+      if(e.location)metaParts.push(`<span class="lc-meta-item">${e.location}</span>`);
+      if(e.mood)metaParts.push(`<span class="lc-meta-item">${e.mood}</span>`);
+      const metaHtml=metaParts.join('<span class="lc-meta-dot">·</span>');
+      const bottomRow=metaHtml?(metaHtml+(tags?'<span class="lc-meta-dot">·</span>'+tags:'')):(tags||'');
+      html+=`<div class="list-card" onclick="openEntry('${ds}')">
+        <div class="list-card-left">
+          <div class="list-card-dow">${fmtDow(ds)}</div>
+          <div class="list-card-day">${parseInt(ds.slice(8))}</div>
+        </div>
+        <div class="list-card-divider"></div>
+        <div class="list-card-body">
+          <div style="font-size:var(--fs-small);color:var(--accent-light);margin-bottom:3px;font-weight:500;">${ds.slice(0,4)} 年</div>
+          ${hasTitle?`<div class="list-card-title">${e.title}</div>`:''}
+          ${plain?`<div class="list-card-preview">${plain.slice(0,120)}</div>`:(hasTitle?'':`<div class="list-card-preview" style="opacity:0.4;">（無內容）</div>`)}
+          ${bottomRow?`<div class="list-card-tags">${bottomRow}</div>`:''}
+        </div>
+      </div>`;
+    });
+    html+=`</div></div>`;
+  });
+  page.innerHTML=html;
+}
+
+async function init(){loadTheme();loadSettings();renderCal();showListPage();await loadEntries();renderCal();renderEntryList();renderListPage();}
+init();
+</script>
+<script>
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
+</script>
+</body>
+</html>
