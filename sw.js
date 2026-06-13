@@ -3,8 +3,6 @@ const ASSETS = [
   '/Memoire/',
   '/Memoire/index.html',
   '/Memoire/manifest.json',
-  'https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css',
-  'https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js',
 ];
 
 self.addEventListener('install', e => {
@@ -24,7 +22,7 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  // GAS 請求不走 cache，永遠走網路
+  // 這些 API 永遠走網路，不 cache
   if (e.request.url.includes('script.google.com')) return;
   if (e.request.url.includes('open-meteo.com')) return;
   if (e.request.url.includes('nominatim.openstreetmap.org')) return;
