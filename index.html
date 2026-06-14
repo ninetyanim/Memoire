@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Memoire">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>Memoire</title><!-- v29 -->
+<title>Memoire</title><!-- v30 -->
 <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
 <style>
@@ -483,8 +483,9 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
             <div class="settings-label-wrap"><div class="settings-label">字型大小</div></div>
             <div class="seg-control">
               <button class="seg-btn" onclick="setFontSize('small')">小</button>
-              <button class="seg-btn active" onclick="setFontSize('medium')">中</button>
+              <button class="seg-btn" onclick="setFontSize('medium')">中</button>
               <button class="seg-btn" onclick="setFontSize('large')">大</button>
+              <button class="seg-btn" onclick="setFontSize('xlarge')">特大</button>
             </div>
           </div>
           <div class="settings-row">
@@ -550,14 +551,20 @@ async function callGAS(action, extra={}) {
   return r.json();
 }
 
-const TK='memoire_v10_theme',SETK='memoire_v9_settings';
+const TK='memoire_v10_theme';
 const CACHE_PREFIX='memoire_v10_content_';  // localStorage key prefix for content cache
 const INDEX_CACHE_KEY='memoire_v10_index';   // localStorage key for index cache
+
+// 設定 key 依裝置分開存
+function isMobileDevice(){return window.innerWidth<=767;}
+function getSetK(){return isMobileDevice()?'memoire_v10_settings_mobile':'memoire_v10_settings_desktop';}
+function getDefaultFontSize(){return isMobileDevice()?'large':'medium';}
+
 let entries={},currentDate=null,quill=null;
 let calYear=new Date().getFullYear(),calMonth=new Date().getMonth();
 let autoSaveTimer=null,sidebarOpen=true;
 let pendingSuggestedTags={};
-let appSettings={fontSize:'medium',lineHeight:'normal',aiWriting:true,aiMood:true};
+let appSettings={fontSize:getDefaultFontSize(),lineHeight:'normal',aiWriting:true,aiMood:true};
 let driveReady=false; // Drive 初始化完成旗標
 
 // ── localStorage helpers（僅用於 theme/settings/content cache）──
@@ -1048,24 +1055,30 @@ function renderWeatherLocation(e){
   row.innerHTML=`<span class="wl-loading">取得天氣中...</span><span class="wl-divider" style="margin:0 2px;"></span><span class="wl-loading">定位中...</span>`;
 
   let geoSettled=false;
-  // Hard fallback：3 秒內 geolocation 沒回應（sandbox 環境），直接用台北座標
+  // Hard fallback：1 秒內 geolocation 沒回應，直接用台北座標
   const capturedDate=currentDate;
   if(!capturedDate||!/^\d{4}-\d{2}-\d{2}$/.test(capturedDate))return;
+
+  // 確保 entry 存在（新日記尚未儲存時也能寫入 weather）
+  function ensureEntry(ds){
+    if(!entries[ds])entries[ds]={title:'',content:'',tags:[],mood:'',weather:'',location:''};
+  }
+
   window._geoFallbackTimer=setTimeout(async()=>{
     if(geoSettled)return;
     geoSettled=true;
     window._geoFallbackTimer=null;
     const weather=await fetchWeather(25.033,121.565);
-    if(weather&&capturedDate&&entries[capturedDate]){
+    if(weather&&capturedDate){
+      ensureEntry(capturedDate);
       entries[capturedDate].weather=weather;
       await doSaveIndexOnly(capturedDate);
-      // 只有還在同一篇日記才更新畫面
       if(currentDate===capturedDate){
         const r=document.getElementById('weather-location-row');
         if(r)renderWLRow(r,weather,entries[capturedDate].location||null,!entries[capturedDate].location);
       }
     }
-  },3000);
+  },1000);
   const settle=()=>{geoSettled=true;clearTimeout(window._geoFallbackTimer);window._geoFallbackTimer=null;};
 
   // 嘗試定位
@@ -1079,7 +1092,8 @@ function renderWeatherLocation(e){
           fetchWeather(lat,lon),
           fetchLocation(lat,lon)
         ]);
-        if(capturedDate&&entries[capturedDate]){
+        if(capturedDate){
+          ensureEntry(capturedDate);
           if(weather)entries[capturedDate].weather=weather;
           if(location)entries[capturedDate].location=location;
           await doSaveIndexOnly(capturedDate);
@@ -1093,13 +1107,17 @@ function renderWeatherLocation(e){
         if(geoSettled)return;
         settle();
         const weather=await fetchWeather(25.033,121.565);
-        if(weather&&capturedDate&&entries[capturedDate]){entries[capturedDate].weather=weather;await doSaveIndexOnly(capturedDate);}
+        if(weather&&capturedDate){
+          ensureEntry(capturedDate);
+          entries[capturedDate].weather=weather;
+          await doSaveIndexOnly(capturedDate);
+        }
         if(currentDate===capturedDate){
           const r=document.getElementById('weather-location-row');
           if(r)renderWLRow(r,weather,null,true);
         }
       },
-      {timeout:5000}
+      {timeout:2000}
     );
   } else {
     settle();
@@ -1670,7 +1688,7 @@ function renderSettingsPage(){
     const btns=ctrl.querySelectorAll('.seg-btn');
     btns.forEach(b=>b.classList.remove('active'));
   });
-  const fsMap={small:0,medium:1,large:2};
+  const fsMap={small:0,medium:1,large:2,xlarge:3};
   const lhMap={compact:0,normal:1,loose:2};
   const fsCtrls=document.querySelectorAll('#settings-page .seg-control');
   if(fsCtrls[0]) fsCtrls[0].querySelectorAll('.seg-btn')[fsMap[appSettings.fontSize]]?.classList.add('active');
@@ -1689,7 +1707,7 @@ function renderSettingsPage(){
 
 function loadSettings(){
   try{
-    const v=lsGet(SETK);
+    const v=lsGet(getSetK());
     if(v) appSettings=Object.assign(appSettings,JSON.parse(v));
   }catch(e){}
   applyFontSize(appSettings.fontSize);
@@ -1700,7 +1718,7 @@ function loadSettings(){
 function saveSettings(){
   appSettings.aiWriting=document.getElementById('toggle-writing')?.checked??true;
   appSettings.aiMood=document.getElementById('toggle-mood')?.checked??true;
-  lsSet(SETK,JSON.stringify(appSettings));
+  lsSet(getSetK(),JSON.stringify(appSettings));
   applyAISettings();
 }
 
@@ -1714,17 +1732,18 @@ function applyAISettings(){
 }
 
 const fontSizeMap={
-  small:{title:'16px',subtitle:'13px',body:'12px',btn:'11px',small:'10px'},
-  medium:{title:'20px',subtitle:'16px',body:'15px',btn:'14px',small:'12px'},
-  large:{title:'21px',subtitle:'17px',body:'16px',btn:'15px',small:'13px'},
+  small: {title:'16px',subtitle:'13px',body:'12px',btn:'11px',small:'10px'},
+  medium:{title:'19px',subtitle:'15px',body:'14px',btn:'13px',small:'12px'},
+  large: {title:'22px',subtitle:'17px',body:'16px',btn:'15px',small:'13px'},
+  xlarge:{title:'25px',subtitle:'19px',body:'18px',btn:'16px',small:'14px'},
 };
 function setFontSize(size){
   appSettings.fontSize=size;
   applyFontSize(size);
   // 更新 seg-btn active 狀態
   const ctrl=document.querySelectorAll('#settings-page .seg-control')[0];
-  if(ctrl){ctrl.querySelectorAll('.seg-btn').forEach((b,i)=>b.classList.toggle('active',['small','medium','large'][i]===size));}
-  lsSet(SETK,JSON.stringify(appSettings));
+  if(ctrl){ctrl.querySelectorAll('.seg-btn').forEach((b,i)=>b.classList.toggle('active',['small','medium','large','xlarge'][i]===size));}
+  lsSet(getSetK(),JSON.stringify(appSettings));
 }
 function applyFontSize(size){
   const m=fontSizeMap[size]||fontSizeMap.medium;
@@ -1742,7 +1761,7 @@ function setLineHeight(lh){
   applyLineHeight(lh);
   const ctrl=document.querySelectorAll('#settings-page .seg-control')[1];
   if(ctrl){ctrl.querySelectorAll('.seg-btn').forEach((b,i)=>b.classList.toggle('active',['compact','normal','loose'][i]===lh));}
-  lsSet(SETK,JSON.stringify(appSettings));
+  lsSet(getSetK(),JSON.stringify(appSettings));
 }
 function applyLineHeight(lh){
   const val=lineHeightMap[lh]||'1.8';
