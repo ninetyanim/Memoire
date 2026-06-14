@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Memoire</title><!-- v28 -->
+<title>Memoire</title><!-- v29 -->
 <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
 <style>
@@ -261,8 +261,112 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
 .settings-action-btn:hover{border-color:var(--accent-light);color:var(--accent-light);}
 .settings-action-btn.disabled{opacity:0.4;cursor:not-allowed;}
 
+
+/* ══════════════════════════════════════
+   手機版 RWD（≤ 767px）
+   ══════════════════════════════════════ */
+@media (max-width: 767px) {
+
+  /* ── 側邊欄：overlay 滑入 ── */
+  #sidebar {
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    z-index: 200;
+    width: 280px !important;
+    min-width: 280px !important;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    border-right: 1px solid var(--border) !important;
+  }
+  #sidebar.mobile-open {
+    transform: translateX(0);
+  }
+  /* 桌面版 collapsed class 在手機無效 */
+  #sidebar.collapsed {
+    width: 280px !important;
+    min-width: 280px !important;
+  }
+
+  /* ── 遮罩 ── */
+  #sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    z-index: 199;
+  }
+  #sidebar-overlay.visible { display: block; }
+
+  /* ── 桌面搜尋框隱藏 ── */
+  #search-wrap { display: none; }
+
+  /* ── topbar：加搜尋 icon ── */
+  #mobile-search-btn { display: flex; }
+  #mobile-search-row { display: none; }
+  #mobile-search-row.open {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--sidebar-bg);
+  }
+  #mobile-search-input {
+    flex: 1;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 6px 10px;
+    font-size: var(--fs-body);
+    color: var(--text-title);
+    font-family: inherit;
+    outline: none;
+  }
+  #mobile-search-input:focus { border-color: var(--accent-light); }
+  #mobile-search-close {
+    background: none; border: none; cursor: pointer;
+    color: var(--text-muted); font-size: var(--fs-subtitle);
+    padding: 2px 6px;
+  }
+
+  /* ── topbar 調整：隱藏桌面 new-btn 文字，改 icon ── */
+  .new-btn { padding: 5px 10px; font-size: var(--fs-btn); }
+
+  /* ── 時間軸卡片：略微收緊 ── */
+  .list-cards-wrap { padding: 5px 8px; gap: 5px; }
+  .list-card-body { padding: 10px 30px 10px 10px; }
+  .list-card-left { width: 52px; padding: 10px 0 10px 10px; }
+  .list-card-day { font-size: 22px; }
+
+  /* ── 編輯器：toolbar 收合 ── */
+  .ql-toolbar.ql-snow {
+    display: none !important;
+  }
+  .ql-toolbar.ql-snow.toolbar-open {
+    display: flex !important;
+    flex-wrap: wrap;
+  }
+  /* Aa 按鈕 */
+  #toolbar-toggle-btn { display: flex; }
+
+  /* ── editor topbar 按鈕：在手機上精簡 ── */
+  .analyze-btn { font-size: 11px; padding: 3px 7px; }
+  .del-btn { font-size: 11px; padding: 3px 7px; }
+
+  /* ── action-bar 字型調小 ── */
+  .ts-btn, .ai-btn { font-size: var(--fs-small); padding: 4px 8px; }
+}
+
+/* 桌面版隱藏手機專用元素 */
+@media (min-width: 768px) {
+  #mobile-search-btn { display: none !important; }
+  #mobile-search-row { display: none !important; }
+  #sidebar-overlay { display: none !important; }
+  #toolbar-toggle-btn { display: none !important; }
+}
 </style>
 
+<div id="sidebar-overlay" onclick="closeSidebar()"></div>
 <div id="app">
   <div id="sidebar">
     <div class="sidebar-header">
@@ -310,8 +414,13 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
         <button onclick="showListPage()" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:var(--fs-btn);padding:0 2px;flex-shrink:0;">×</button>
       </span>
       <span id="search-count" style="display:none;font-size:var(--fs-small);color:var(--text-muted);white-space:nowrap;margin-right:6px;"></span>
+      <button class="icon-btn" id="mobile-search-btn" onclick="openMobileSearch()" title="搜尋">🔍</button>
       <button class="icon-btn" id="otd-topbar-btn" onclick="showOtdPage()" title="今日回顧">📅</button>
       <button class="new-btn" id="new-btn" onclick="newEntry()">＋ 新增</button>
+    </div>
+    <div id="mobile-search-row">
+      <input id="mobile-search-input" type="text" placeholder="🔍 搜尋日記..." onkeydown="onMobileSearchKey(event)">
+      <button id="mobile-search-close" onclick="closeMobileSearch()">×</button>
     </div>
     <div id="list-page"></div>
     <div id="editor-page">
@@ -329,7 +438,7 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
         <div class="mood-bar"><span class="mood-label">心情</span><span id="mood-val" style="font-size:var(--fs-small);opacity:0.5;">儲存後分析...</span></div>
         <div id="ai-bar"></div>
         <div class="action-bar">
-          <button class="ts-btn" onclick="insertTimestamp()">🕐 時間戳記</button><button class="ts-btn" onclick="showImageComingSoon()">🖼 插入圖片</button><button class="ai-btn" onclick="askAI()">✨ 給我一個問題</button>
+          <button class="ts-btn" id="toolbar-toggle-btn" onclick="toggleMobileToolbar()">Aa</button><button class="ts-btn" onclick="insertTimestamp()">🕐 時間戳記</button><button class="ts-btn" onclick="showImageComingSoon()">🖼 插入圖片</button><button class="ai-btn" onclick="askAI()">✨ 給我一個問題</button>
         </div>
       </div>
     </div>
@@ -571,7 +680,23 @@ function fmtDisplay(ds){const d=new Date(ds+'T12:00:00');const dw=['日','一','
 function fmtDow(ds){return['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(ds+'T12:00:00').getDay()];}
 function fmtMG(ds){const d=new Date(ds+'T12:00:00');return['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()]+', '+d.getFullYear();}
 function getPlain(html){return(html||'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();}
-function toggleSidebar(){sidebarOpen=!sidebarOpen;document.getElementById('sidebar').classList.toggle('collapsed',!sidebarOpen);}
+function isMobile(){return window.innerWidth<=767;}
+function toggleSidebar(){
+  if(isMobile()){
+    const sb=document.getElementById('sidebar');
+    const ov=document.getElementById('sidebar-overlay');
+    const open=sb.classList.contains('mobile-open');
+    if(open){sb.classList.remove('mobile-open');ov.classList.remove('visible');}
+    else{sb.classList.add('mobile-open');ov.classList.add('visible');}
+  } else {
+    sidebarOpen=!sidebarOpen;
+    document.getElementById('sidebar').classList.toggle('collapsed',!sidebarOpen);
+  }
+}
+function closeSidebar(){
+  document.getElementById('sidebar').classList.remove('mobile-open');
+  document.getElementById('sidebar-overlay').classList.remove('visible');
+}
 
 function renderCal(){
   const grid=document.getElementById('cal-grid');
@@ -611,7 +736,7 @@ function onCalYearChange(y){calYear=parseInt(y);renderCal();}
 function onCalMonthChange(m){calMonth=parseInt(m);renderCal();}
 function changeMonth(d){calMonth+=d;if(calMonth<0){calMonth=11;calYear--;}if(calMonth>11){calMonth=0;calYear++;}renderCal();}
 function goToday(){const t=new Date();calYear=t.getFullYear();calMonth=t.getMonth();renderCal();const today=todayStr();if(entries[today])openEntry(today);else showListPage();}
-function selectDate(ds){calYear=parseInt(ds.slice(0,4));calMonth=parseInt(ds.slice(5,7))-1;if(entries[ds])openEntry(ds);else newEntryOnDate(ds);}
+function selectDate(ds){calYear=parseInt(ds.slice(0,4));calMonth=parseInt(ds.slice(5,7))-1;if(isMobile())closeSidebar();if(entries[ds])openEntry(ds);else newEntryOnDate(ds);}
 
 function renderEntryList(){
   const list=document.getElementById('entry-list');
@@ -1815,6 +1940,34 @@ function showOtdPage(){
     html+=`</div></div>`;
   });
   page.innerHTML=html;
+}
+
+// ── 手機版搜尋 ──
+function openMobileSearch(){
+  const row=document.getElementById('mobile-search-row');
+  row.classList.add('open');
+  document.getElementById('mobile-search-input').focus();
+}
+function closeMobileSearch(){
+  document.getElementById('mobile-search-row').classList.remove('open');
+  document.getElementById('mobile-search-input').value='';
+  clearSearch();
+}
+function onMobileSearchKey(e){
+  if(e.key!=='Enter')return;
+  const q=document.getElementById('mobile-search-input').value.trim();
+  if(!q){clearSearch();return;}
+  currentSearch=q;
+  // 同步桌面搜尋框
+  document.getElementById('search-box').value=q;
+  showSearchResults(q);
+}
+
+// ── 手機版 toolbar 收合 ──
+function toggleMobileToolbar(){
+  const tb=document.querySelector('.ql-toolbar.ql-snow');
+  if(!tb)return;
+  tb.classList.toggle('toolbar-open');
 }
 
 async function init(){loadTheme();loadSettings();renderCal();showListPage();await loadEntries();renderCal();renderEntryList();renderListPage();}
