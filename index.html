@@ -3,10 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#1E1E22">
-<link rel="manifest" href="manifest.json">
-<link rel="apple-touch-icon" href="icon-192.png">
-<title>Memoire</title>
+<title>Memoire</title><!-- v28 -->
 <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
 <style>
@@ -221,7 +218,7 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
 
 .tag-picker-item{padding:5px 8px;border-radius:4px;font-size:var(--fs-btn);color:var(--text-body);cursor:pointer;}
 .tag-picker-item:hover{background:var(--hover);color:var(--text-title);}
-::-webkit-scrollbar{width:3px;}
+::-webkit-scrollbar{width:6px;}
 ::-webkit-scrollbar-track{background:transparent;}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
 @keyframes fadeIn{from{opacity:0;transform:translateY(3px);}to{opacity:1;transform:translateY(0);}}
@@ -413,13 +410,7 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
             <div class="settings-label-wrap"><div class="settings-label">匯出所有日記</div></div>
             <button class="settings-action-btn" onclick="exportEntries()">匯出 .md</button>
           </div>
-          <div class="settings-row">
-            <div class="settings-label-wrap">
-              <div class="settings-label">匯入 Diaro 備份</div>
-              <div class="settings-desc">即將推出</div>
-            </div>
-            <button class="settings-action-btn disabled" disabled>匯入</button>
-          </div>
+
         </div>
 
       </div>
@@ -440,9 +431,9 @@ async function callGAS(action, extra={}) {
   return r.json();
 }
 
-const TK='memoire_v9_theme',SETK='memoire_v9_settings';
-const CACHE_PREFIX='memoire_v9_content_';  // localStorage key prefix for content cache
-const INDEX_CACHE_KEY='memoire_v9_index';   // localStorage key for index cache
+const TK='memoire_v10_theme',SETK='memoire_v9_settings';
+const CACHE_PREFIX='memoire_v10_content_';  // localStorage key prefix for content cache
+const INDEX_CACHE_KEY='memoire_v10_index';   // localStorage key for index cache
 let entries={},currentDate=null,quill=null;
 let calYear=new Date().getFullYear(),calMonth=new Date().getMonth();
 let autoSaveTimer=null,sidebarOpen=true;
@@ -606,7 +597,7 @@ function renderEntryList(){
   if(!sorted.length){list.innerHTML='<div style="padding:10px 12px;font-size:var(--fs-small);color:var(--text-muted);">尚無日記</div>';return;}
   list.innerHTML=sorted.map(ds=>{
     const e=entries[ds];const cls=ds===currentDate?'entry-item active':'entry-item';
-    const label=e.title||getPlain(e.content).slice(0,20)||'（無內容）';
+    const label=e.title||(getPlain(e.content)||e.preview||'').slice(0,20)||'（無內容）';
     return `<div class="${cls}" onclick="openEntry('${ds}')"><div class="entry-item-text"><div class="entry-date">${fmtDisplay(ds)}</div><div class="entry-title-s">${label}</div></div><button class="entry-del" onclick="event.stopPropagation();deleteEntry('${ds}')">✕</button></div>`;
   }).join('');
 }
@@ -616,11 +607,12 @@ function renderListPage(){
   const sorted=Object.keys(entries).sort((a,b)=>b.localeCompare(a));
   if(!sorted.length){page.innerHTML=`<div class="list-empty"><div style="font-size:32px;opacity:0.3;">📖</div><div style="font-size:var(--fs-btn);">還沒有日記，點擊「＋ 新增」開始</div></div>`;return;}
   const groups={};sorted.forEach(ds=>{const g=fmtMG(ds);if(!groups[g])groups[g]=[];groups[g].push(ds);});
-  let html='';
+  const totalCount=sorted.length;
+  let html=`<div style="padding:8px 14px 2px;font-size:var(--fs-small);color:var(--text-muted);">共 ${totalCount} 篇日記</div>`;
   Object.keys(groups).forEach(g=>{
     html+=`<div class="list-month-group"><div class="list-month-label">${g}</div><div class="list-cards-wrap">`;
     groups[g].forEach(ds=>{
-      const e=entries[ds],plain=getPlain(e.content),hasTitle=!!(e.title&&e.title.trim());
+      const e=entries[ds],plain=getPlain(e.content)||e.preview||'',hasTitle=!!(e.title&&e.title.trim());
       const tags=(e.tags||[]).map(t=>`<span class="list-card-tag" onclick="event.stopPropagation();jumpToTag('${t}')">${t}</span>`).join('');
       // 底部 meta 列：天氣 · 地點 · 心情 · 標籤（有什麼顯示什麼）
       const metaParts=[];
@@ -1089,8 +1081,8 @@ function renderOtd(){
   if(!past.length||!eb)return;
   const items=past.map(ds=>{
     const e=entries[ds];
-    const title=e.title||getPlain(e.content).slice(0,40)||'（無內容）';
-    const plain=getPlain(e.content);
+    const title=e.title||(getPlain(e.content)||e.preview||'').slice(0,40)||'（無內容）';
+    const plain=getPlain(e.content)||e.preview||'';
     const preview=plain.slice(0,80);
     return `<div class="otd-item">
       <div class="otd-year">${ds.slice(0,4)} 年</div>
@@ -1426,7 +1418,7 @@ function renderTagsPage(){
     if(!matched.length){container.innerHTML='<div style="padding:20px 16px;font-size:var(--fs-btn);color:var(--text-muted);">沒有符合的日記</div>';return;}
     let html='<div style="padding:8px 16px 4px;font-size:var(--fs-small);color:var(--text-muted);">共 '+matched.length+' 篇日記</div>';
     matched.forEach(ds=>{
-      const e=entries[ds],plain=getPlain(e.content);
+      const e=entries[ds],plain=getPlain(e.content)||e.preview||'';
       html+=`<div class="list-card" onclick="openEntry('${ds}')">
         <div class="list-card-left"><div class="list-card-dow">${fmtDow(ds)}</div><div class="list-card-day">${parseInt(ds.slice(8))}</div></div>
         <div class="list-card-body">
@@ -1800,11 +1792,6 @@ function showOtdPage(){
 
 async function init(){loadTheme();loadSettings();renderCal();showListPage();await loadEntries();renderCal();renderEntryList();renderListPage();}
 init();
-</script>
-<script>
-if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('sw.js').catch(()=>{});
-}
 </script>
 </body>
 </html>
