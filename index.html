@@ -545,6 +545,16 @@ const GAS_URL = 'https://script.google.com/macros/s/AKfycbz3xclRrSiG09WfRAxONhQC
 const GAS_SECRET = 'cUoqAiTv7qhaX68WXiYL';
 
 async function callGAS(action, extra={}) {
+  // writeEntry 內容可能很長，改走 POST 避免 URL 超限
+  if (action === 'writeEntry') {
+    const url = `${GAS_URL}?secret=${GAS_SECRET}&action=writeEntry`;
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(extra)
+    });
+    return r.json();
+  }
   const data = encodeURIComponent(JSON.stringify(extra));
   const url = `${GAS_URL}?secret=${GAS_SECRET}&action=${action}&data=${data}`;
   const r = await fetch(url);

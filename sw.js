@@ -1,4 +1,4 @@
-const CACHE_NAME = 'memoire-v2';
+const CACHE_NAME = 'memoire-v3';
 const ASSETS = [
   '/Memoire/',
   '/Memoire/index.html',
