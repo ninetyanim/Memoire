@@ -103,7 +103,7 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
 .analyze-btn:disabled{opacity:0.5;cursor:not-allowed;}
 
 /* quill-mount: toolbar 自動排第一，其餘由 #editor-body 管 */
-#quill-mount{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+#quill-mount{flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;}
 
 /* Quill toolbar */
 .ql-toolbar.ql-snow{background:var(--sidebar-bg) !important;border:none !important;border-bottom:1px solid var(--border) !important;padding:6px 14px !important;flex-shrink:0;}
@@ -218,9 +218,13 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
 
 .tag-picker-item{padding:5px 8px;border-radius:4px;font-size:var(--fs-btn);color:var(--text-body);cursor:pointer;}
 .tag-picker-item:hover{background:var(--hover);color:var(--text-title);}
+.editor-loading{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:var(--bg);z-index:10;}
+.editor-loading-spinner{width:28px;height:28px;border:2px solid var(--border);border-top-color:var(--accent-light);border-radius:50%;animation:spin 0.8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.editor-loading-text{font-size:var(--fs-small);color:var(--text-muted);}
 ::-webkit-scrollbar{width:6px;}
 ::-webkit-scrollbar-track{background:transparent;}
-::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+::-webkit-scrollbar-thumb{background:var(--accent-light);border-radius:2px;opacity:0.7;}
 @keyframes fadeIn{from{opacity:0;transform:translateY(3px);}to{opacity:1;transform:translateY(0);}}
 
 /* ── 設定頁 ── */
@@ -484,8 +488,26 @@ async function loadEntries(){
     driveReady=true;
     lsSet(INDEX_CACHE_KEY, JSON.stringify(entries));
     renderCal();renderEntryList();renderListPage();
+    // 背景預先 cache 最近 20 筆 content
+    prefetchRecentEntries(20);
   }catch(e){
     if(!cached)showLoadingState('網路錯誤，請重新整理');
+  }
+}
+
+// 背景逐筆抓取最近 N 筆，已有 cache 的跳過
+async function prefetchRecentEntries(n){
+  const sorted=Object.keys(entries).sort((a,b)=>b.localeCompare(a)).slice(0,n);
+  for(const ds of sorted){
+    // 已有 cache 跳過
+    if(lsGet(CACHE_PREFIX+ds)!==null)continue;
+    try{
+      const res=await callGAS('readEntry',{date:ds});
+      const c=res.content||'';
+      lsSet(CACHE_PREFIX+ds,c);
+      // 每筆間隔 300ms，避免 GAS 過載
+      await new Promise(r=>setTimeout(r,300));
+    }catch(e){}
   }
 }
 
@@ -694,12 +716,17 @@ async function openEntry(ds){
   if(entries[ds]&&!entries[ds].content){
     showEditorPage();
     buildEditor(entries[ds]);  // 先顯示 UI（title/tags 已有）
-    setSaveStatus('載入中...');
+    // 顯示 loading overlay
+    const mount=document.getElementById('quill-mount');
+    const overlay=document.createElement('div');
+    overlay.className='editor-loading';
+    overlay.innerHTML='<div class="editor-loading-spinner"></div><div class="editor-loading-text">載入中...</div>';
+    if(mount)mount.appendChild(overlay);
     const content=await loadEntryContent(ds);
     if(currentDate===ds){  // 確認還在同一篇
       entries[ds].content=content;
       if(quill)quill.clipboard.dangerouslyPasteHTML(content);
-      setSaveStatus('');
+      overlay.remove();
     }
   } else {
     showEditorPage();buildEditor(entries[ds]||{});
