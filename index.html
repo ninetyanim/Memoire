@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Memoire">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>Memoire</title><!-- v30 -->
+<title>Memoire</title><!-- v34 fix -->
 <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
 <style>
@@ -20,7 +20,7 @@
 body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;background:var(--bg);color:var(--text-title);font-size:var(--fs-body);height:100vh;overflow:hidden;}
 #app{display:flex;height:100vh;overflow:hidden;}
 
-#sidebar{width:210px;min-width:210px;background:var(--sidebar-bg);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;transition:width 0.2s,min-width 0.2s;}
+#sidebar{width:240px;min-width:240px;background:var(--sidebar-bg);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;transition:width 0.2s,min-width 0.2s;}
 #sidebar.collapsed{width:0;min-width:0;border-right:none;}
 .sidebar-header{padding:12px 12px 8px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
 .app-name{font-size:var(--fs-subtitle);font-weight:600;color:var(--text-title);}
@@ -33,11 +33,11 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
 .cal-nav-select-wrap::after{content:'▾';position:absolute;right:4px;font-size:8px;color:var(--accent-light);pointer-events:none;}
 .cal-nav-select{background:var(--card-bg);border:1px solid var(--border);border-radius:4px;color:var(--text-body);font-size:var(--fs-small);padding:2px 16px 2px 6px;cursor:pointer;font-family:inherit;appearance:none;-webkit-appearance:none;width:100%;}
 .cal-nav-select:hover{border-color:var(--accent-light);color:var(--text-title);}
-.cal-nav-btn{background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:var(--fs-btn);padding:2px 4px;border-radius:3px;line-height:1;}
+.cal-nav-btn{background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:var(--fs-btn);padding:2px 4px;border-radius:3px;line-height:1;display:inline-flex;align-items:center;}
 .cal-nav-btn:hover{color:var(--text-title);}
 .cal-today-btn{background:none;border:1px solid var(--border);cursor:pointer;color:var(--accent-light);font-size:var(--fs-small);padding:1px 6px;border-radius:3px;font-family:inherit;white-space:nowrap;}
 .cal-today-btn:hover{border-color:var(--accent-light);}
-.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);grid-template-rows:repeat(6,1fr);gap:1px;}
 .cal-dow{font-size:var(--fs-small);color:var(--text-muted);text-align:center;padding:1px 0 3px;}
 .cal-day{font-size:var(--fs-small);text-align:center;padding:3px 1px;border-radius:50%;cursor:pointer;color:var(--text-body);aspect-ratio:1;display:flex;align-items:center;justify-content:center;position:relative;transition:background 0.1s;}
 .cal-day:hover{background:var(--hover);}
@@ -97,7 +97,7 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
 
 #editor-page{flex:1;display:none;flex-direction:column;overflow:hidden;}
 .editor-topbar{padding:7px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;background:var(--sidebar-bg);flex-shrink:0;}
-.back-btn{background:none;border:1px solid var(--border);cursor:pointer;color:var(--text-body);font-size:var(--fs-btn);padding:3px 10px;border-radius:4px;font-family:inherit;}
+.back-btn{background:none;border:1px solid var(--border);cursor:pointer;color:var(--text-body);font-size:var(--fs-btn);padding:3px 10px;border-radius:4px;font-family:inherit;display:inline-flex;align-items:center;gap:5px;}
 .back-btn:hover{color:var(--text-title);}
 .editor-date{font-size:var(--fs-btn);color:var(--text-body);flex:1;}
 .save-status{font-size:var(--fs-small);color:var(--text-muted);}
@@ -142,10 +142,10 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
 
 /* ── Meta bar（日期列 + 天氣地點列）── */
 #date-meta-wrap{flex-shrink:0;border-bottom:1px solid var(--border);}
-#date-row{padding:10px 16px 3px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
-.date-main{font-size:var(--fs-btn);color:var(--text-body);font-weight:500;}
-.date-dot{color:var(--text-muted);font-size:var(--fs-btn);}
-.date-festival{font-size:var(--fs-btn);color:var(--accent-light);font-weight:500;}
+#date-row{padding:14px 16px 4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.date-main{font-size:var(--fs-title);color:var(--text-title);font-weight:600;}
+.date-dot{color:var(--text-muted);font-size:var(--fs-subtitle);}
+.date-festival{font-size:var(--fs-subtitle);color:var(--accent-light);font-weight:500;}
 .date-jieqi{font-size:var(--fs-small);color:var(--text-body);background:rgba(120,120,160,0.13);border:1px solid rgba(120,120,160,0.2);padding:1px 8px;border-radius:8px;}
 #weather-location-row{padding:2px 16px 8px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;min-height:24px;}
 .wl-item{display:flex;align-items:center;gap:5px;font-size:var(--fs-small);color:var(--text-body);}
@@ -209,18 +209,29 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
 .otd-preview{font-size:var(--fs-small);color:var(--text-muted);line-height:1.5;margin-top:2px;}
 .otd-read{font-size:var(--fs-small);color:var(--accent-light);cursor:pointer;background:none;border:none;font-family:inherit;padding:0;margin-top:4px;display:inline-block;opacity:0.85;}
 .otd-read:hover{opacity:1;text-decoration:underline;}
-/* 心情列 */
-.mood-bar{padding:6px 16px;display:flex;align-items:center;gap:6px;min-height:28px;border-bottom:1px solid var(--border);}
-.mood-label{font-size:var(--fs-small);color:var(--text-muted);}
-#ai-bar{padding:0 16px 6px;}
+.nav-entry-btn{background:none;border:1px solid var(--border);cursor:pointer;color:var(--text-muted);font-size:var(--fs-btn);padding:3px 9px;border-radius:4px;font-family:inherit;transition:color 0.15s,border-color 0.15s;display:inline-flex;align-items:center;gap:4px;}
+.nav-entry-btn:hover:not(:disabled){color:var(--accent-light);border-color:var(--accent-light);}
+.nav-entry-btn:disabled{opacity:0.3;cursor:default;}
+.nav-divider{color:var(--border);font-size:var(--fs-btn);padding:0 1px;user-select:none;}
+.ai-summary-bar{padding:5px 16px;display:flex;align-items:center;gap:10px;min-height:30px;border-top:1px solid var(--border);flex-wrap:wrap;}
+.ai-summary-mood{font-size:var(--fs-small);color:var(--text-muted);display:flex;align-items:center;gap:5px;flex-shrink:0;}
+.ai-summary-mood-val{font-size:var(--fs-small);}
+.ai-summary-mood-val.has-val{color:var(--text-body);}
+.ai-summary-tags{display:flex;align-items:center;gap:4px;flex-wrap:wrap;}
+.ai-sum-chip{font-size:var(--fs-small);color:var(--tag);background:rgba(128,128,168,0.15);padding:1px 7px;border-radius:8px;}
+.ai-sum-chip.suggested{color:var(--accent-light);background:transparent;border:1px dashed var(--accent-light);opacity:0.8;cursor:pointer;}
+.ai-sum-chip.suggested:hover{opacity:1;}
+#ai-bar{padding:0 16px 5px;}
 .ai-question{background:var(--card-bg);border:1px solid var(--border);border-radius:7px;padding:8px 12px;font-size:var(--fs-btn);color:var(--accent-light);display:flex;align-items:flex-start;gap:6px;animation:fadeIn 0.25s;}
 .ai-q-close{margin-left:auto;color:var(--text-muted);font-size:var(--fs-btn);cursor:pointer;}
 .ai-q-close:hover{color:var(--text-title);}
-.action-bar{padding:7px 16px;border-top:1px solid var(--border);display:flex;align-items:center;}
-.ts-btn{background:none;border:1px solid var(--border);border-radius:5px;padding:5px 12px;font-size:var(--fs-btn);color:var(--text-muted);cursor:pointer;font-family:inherit;margin-right:6px;}
+.action-bar{padding:7px 16px;border-top:1px solid var(--border);display:flex;align-items:center;gap:6px;}
+.ts-btn{background:none;border:1px solid var(--border);border-radius:5px;padding:5px 10px;font-size:var(--fs-btn);color:var(--text-muted);cursor:pointer;font-family:inherit;}
 .ts-btn:hover{border-color:var(--accent-light);color:var(--accent-light);}
-.ai-btn{background:none;border:1px solid var(--border);border-radius:5px;padding:5px 12px;font-size:var(--fs-btn);color:var(--text-muted);cursor:pointer;font-family:inherit;}
+.ai-btn{background:none;border:1px solid var(--border);border-radius:5px;padding:5px 10px;font-size:var(--fs-btn);color:var(--text-muted);cursor:pointer;font-family:inherit;}
+.ai-btn-right{margin-left:auto;}
 .ai-btn:hover{border-color:var(--accent-light);color:var(--accent-light);}
+.word-count{font-size:var(--fs-small);color:var(--text-muted);margin-left:auto;white-space:nowrap;}
 
 .tag-picker-item{padding:5px 8px;border-radius:4px;font-size:var(--fs-btn);color:var(--text-body);cursor:pointer;}
 .tag-picker-item:hover{background:var(--hover);color:var(--text-title);}
@@ -356,11 +367,12 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
   #toolbar-toggle-btn { display: flex; }
 
   /* ── editor topbar 按鈕：在手機上精簡 ── */
-  .analyze-btn { font-size: 11px; padding: 3px 7px; }
+  .nav-entry-btn { font-size: 11px; padding: 2px 6px; }
   .del-btn { font-size: 11px; padding: 3px 7px; }
 
   /* ── action-bar 字型調小 ── */
-  .ts-btn, .ai-btn { font-size: var(--fs-small); padding: 4px 8px; }
+  .ts-btn, .ai-btn, .analyze-btn { font-size: var(--fs-small); padding: 4px 8px; }
+  .word-count { display: none; }
 }
 
 /* 桌面版隱藏手機專用元素 */
@@ -389,9 +401,9 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
             <select class="cal-nav-select" id="cal-month-select" onchange="onCalMonthChange(this.value)"></select>
           </div>
         </div>
-        <button class="cal-nav-btn" onclick="changeMonth(-1)">‹</button>
+        <button class="cal-nav-btn" onclick="changeMonth(-1)" title="上個月"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
         <button class="cal-today-btn" onclick="goToday()">Today</button>
-        <button class="cal-nav-btn" onclick="changeMonth(1)">›</button>
+        <button class="cal-nav-btn" onclick="changeMonth(1)" title="下個月"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg></button>
       </div>
       <div class="cal-grid" id="cal-grid"></div>
     </div>
@@ -431,26 +443,36 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
     <div id="list-page"></div>
     <div id="editor-page">
       <div class="editor-topbar">
-        <button class="back-btn" onclick="goBack()">← 返回</button>
+        <button class="back-btn" onclick="goBack()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> 返回</button>
         <span class="editor-date" id="editor-date"></span>
-        <span class="save-status" id="save-status"></span>
-        <button class="analyze-btn" id="analyze-btn" onclick="saveAndAnalyze()">✨ 儲存並分析</button>
+        <span class="save-status" id="save-status"></span><span class="word-count" id="word-count" style="font-size:var(--fs-small);color:var(--text-muted);"></span>
+        <button class="nav-entry-btn" id="prev-entry-btn" onclick="navEntry(-1)" title="上一篇"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg> 上一篇</button>
+        <span class="nav-divider">|</span>
+        <button class="nav-entry-btn" id="next-entry-btn" onclick="navEntry(1)" title="下一篇">下一篇 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg></button>
         <button class="del-btn" onclick="deleteCurrentEntry()">刪除</button>
       </div>
       <!-- quill-mount: Quill 在此初始化，toolbar 自動插在最前 -->
       <!-- buildEditor() 會把 title+tags 插入 .ql-container 之前 -->
       <div id="quill-mount"></div>
       <div class="editor-bottom">
-        <div class="mood-bar"><span class="mood-label">心情</span><span id="mood-val" style="font-size:var(--fs-small);opacity:0.5;">儲存後分析...</span></div>
         <div id="ai-bar"></div>
+        <div class="ai-summary-bar" id="ai-summary-bar">
+          <span class="ai-summary-mood"><span style="color:var(--text-muted);font-size:var(--fs-small);">心情</span><span id="mood-val" class="ai-summary-mood-val" style="opacity:0.4;">分析後顯示</span></span>
+          <span style="color:var(--border);font-size:var(--fs-small);">|</span>
+          <span class="ai-summary-tags" id="ai-tag-chips"></span>
+        </div>
         <div class="action-bar">
-          <button class="ts-btn" id="toolbar-toggle-btn" onclick="toggleMobileToolbar()">Aa</button><button class="ts-btn" onclick="insertTimestamp()">🕐 時間戳記</button><button class="ts-btn" onclick="showImageComingSoon()">🖼 插入圖片</button><button class="ai-btn" onclick="askAI()">✨ 給我一個問題</button>
+          <button class="ts-btn" id="toolbar-toggle-btn" onclick="toggleMobileToolbar()">Aa</button>
+          <button class="ts-btn" onclick="insertTimestamp()">🕐 時間戳</button>
+          <button class="ts-btn" onclick="showImageComingSoon()">🖼 圖片</button>
+          <button class="ai-btn ai-btn-right" onclick="askAI()">✨ 引導</button>
+          <button class="analyze-btn" id="analyze-btn" onclick="saveAndAnalyze()">✨ 分析</button>
         </div>
       </div>
     </div>
     <div id="tags-page">
       <div class="tags-topbar">
-        <button class="back-btn" onclick="showListPage()">← 返回</button>
+        <button class="back-btn" onclick="showListPage()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> 返回</button>
         
       </div>
       <div class="tag-filter-bar" id="tag-filter-bar"></div>
@@ -459,7 +481,7 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
 
     <div id="settings-page">
       <div class="settings-topbar">
-        <button class="back-btn" onclick="showListPage()">← 返回</button>
+        <button class="back-btn" onclick="showListPage()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> 返回</button>
       </div>
       <div class="settings-body">
 
@@ -545,6 +567,16 @@ const GAS_URL = 'https://script.google.com/macros/s/AKfycbz3xclRrSiG09WfRAxONhQC
 const GAS_SECRET = 'cUoqAiTv7qhaX68WXiYL';
 
 async function callGAS(action, extra={}) {
+  // writeEntry 內容可能很長，改走 text/plain POST（簡單請求，不觸發 CORS preflight）
+  if (action === 'writeEntry') {
+    const url = `${GAS_URL}?secret=${GAS_SECRET}`;
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: {'Content-Type': 'text/plain;charset=utf-8'},
+      body: JSON.stringify({action, data: extra})
+    });
+    return r.json();
+  }
   const data = encodeURIComponent(JSON.stringify(extra));
   const url = `${GAS_URL}?secret=${GAS_SECRET}&action=${action}&data=${data}`;
   const r = await fetch(url);
@@ -634,34 +666,48 @@ async function prefetchRecentEntries(n){
 }
 
 // 儲存單筆日記到 Drive（.md + index 單筆 merge）
-async function saveEntries(){
-  if(!currentDate||!entries[currentDate])return;
-  const e=entries[currentDate];
+// ── 資料層：三個明確分工的函數 ──
+
+// 1. 把 DOM 當前值同步進 entries memory（純同步，不 async，不碰 GAS）
+function flushCurrentToMemory(){
+  if(!currentDate)return;
+  if(!entries[currentDate])entries[currentDate]={title:'',content:'',tags:[],mood:'',weather:'',location:''};
+  const ti=document.getElementById('title-input');
+  if(ti)entries[currentDate].title=ti.value;
+  if(quill)entries[currentDate].content=quill.root.innerHTML;
+}
+
+// 2. 把 entries[ds] 寫進 localStorage + GAS（純 async，完全不碰 DOM 或全域 currentDate）
+async function persistEntry(ds){
+  if(!ds||!entries[ds])return;
+  const e=entries[ds];
   const plain=getPlain(e.content||'');
-
-  // 1. 寫 .md 檔（存純文字，避免 HTML encode 後 URL 過長）
-  await callGAS('writeEntry',{
-    date:currentDate,
-    content:plain||''
-  });
-
-  // 2. 更新 index 單筆（列表所需欄位，不含 content）
-  await callGAS('writeIndex',{
-    date:currentDate,
-    entry:{
+  const isEmpty=!e.title?.trim()&&!plain.trim();
+  if(isEmpty){
+    delete entries[ds];
+    lsDel(CACHE_PREFIX+ds);
+    callGAS('deleteEntry',{date:ds});
+    lsSet(INDEX_CACHE_KEY,JSON.stringify(entries));
+    return;
+  }
+  await Promise.all([
+    callGAS('writeEntry',{date:ds,content:e.content||''}),
+    callGAS('writeIndex',{date:ds,entry:{
       title:e.title||'',
       preview:plain.slice(0,100),
       tags:e.tags||[],
       mood:e.mood||'',
       weather:e.weather||'',
       location:e.location||''
-    }
-  });
+    }})
+  ]);
+  lsSet(CACHE_PREFIX+ds,e.content||'');
+  lsSet(INDEX_CACHE_KEY,JSON.stringify(entries));
+}
 
-  // 3. 同步更新 localStorage content cache（純文字）
-  lsSet(CACHE_PREFIX+currentDate, plain||'');
-  // 4. 同步更新 index cache
-  lsSet(INDEX_CACHE_KEY, JSON.stringify(entries));
+// 3. 相容舊呼叫 saveEntries()
+async function saveEntries(ds){
+  await persistEntry(ds||currentDate);
 }
 
 // 讀取單筆日記 content（有 cache 直接用，否則從 Drive 抓）
@@ -672,9 +718,7 @@ async function loadEntryContent(ds){
   // cache miss，從 Drive 抓
   try{
     const res=await callGAS('readEntry',{date:ds});
-    // 相容舊 HTML 格式：如果含有 HTML 標籤則自動轉純文字
-    const raw=res.content||'';
-    const content=/<[a-z][\s\S]*>/i.test(raw)?getPlain(raw):raw;
+    const content=res.content||'';
     lsSet(CACHE_PREFIX+ds, content);
     return content;
   }catch(e){return '';}
@@ -745,6 +789,10 @@ function renderCal(){
   const first=new Date(calYear,calMonth,1).getDay(),dim=new Date(calYear,calMonth+1,0).getDate(),prev=new Date(calYear,calMonth,0).getDate(),today=todayStr();
   for(let i=0;i<first;i++){const day=prev-first+1+i;const m=calMonth===0?12:calMonth;const y=calMonth===0?calYear-1:calYear;html+=`<div class="cal-day other-month" onclick="selectDate('${y+'-'+String(m).padStart(2,'0')+'-'+String(day).padStart(2,'0')}')">${day}</div>`;}
   for(let d=1;d<=dim;d++){const ds=calYear+'-'+String(calMonth+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');let cls='cal-day';if(ds===today)cls+=' today';if(ds===currentDate)cls+=' selected';if(entries[ds])cls+=' has-entry';html+=`<div class="${cls}" onclick="selectDate('${ds}')">${d}</div>`;}
+  // 補足 42 格（6列×7欄），確保日曆高度固定
+  const total=first+dim;const remain=42-total;
+  const nm=calMonth===11?1:calMonth+2;const ny=calMonth===11?calYear+1:calYear;
+  for(let d=1;d<=remain;d++){const ds=ny+'-'+String(nm).padStart(2,'0')+'-'+String(d).padStart(2,'0');html+=`<div class="cal-day other-month" onclick="selectDate('${ds}')">${d}</div>`;}
   grid.innerHTML=html;
 }
 function onCalYearChange(y){calYear=parseInt(y);renderCal();}
@@ -829,28 +877,30 @@ async function goBack(){
   clearTimeout(autoSaveTimer);
   if(window._geoFallbackTimer){clearTimeout(window._geoFallbackTimer);window._geoFallbackTimer=null;}
   if(currentDate){
-    const ti=document.getElementById('title-input');
-    const title=ti?ti.value.trim():'';
-    const content=quill?getPlain(quill.root.innerHTML).trim():'';
-    if(!title&&!content){
-      // 空日記：先切畫面，背景刪除
-      const ds=currentDate;
+    flushCurrentToMemory();
+    const ds=currentDate;
+    const e=entries[ds];
+    const isEmpty=!e?.title?.trim()&&!getPlain(e?.content||'').trim();
+    if(isEmpty){
       delete entries[ds];
       lsDel(CACHE_PREFIX+ds);
       showListPage();
-      callGAS('deleteEntry',{date:ds}); // 背景執行，不 await
+      callGAS('deleteEntry',{date:ds});
     } else {
-      // 有內容：先切畫面，背景儲存
-      if(quill)entries[currentDate].content=quill.root.innerHTML;
-      if(ti)entries[currentDate].title=ti.value;
       showListPage();
-      doSave(); // 背景執行，不 await
+      persistEntry(ds);
     }
   } else {
     showListPage();
   }
 }
 async function openEntry(ds){
+  clearTimeout(autoSaveTimer);
+  const prevDate=currentDate;
+  if(prevDate&&prevDate!==ds){
+    flushCurrentToMemory();           // 同步：DOM → memory
+    persistEntry(prevDate);           // 非同步背景儲存舊篇（已從 memory 讀，不依賴 DOM 或 currentDate）
+  }
   currentDate=ds;calYear=parseInt(ds.slice(0,4));calMonth=parseInt(ds.slice(5,7))-1;
   // 若 content 尚未載入（lazy load）
   if(entries[ds]&&!entries[ds].content){
@@ -865,7 +915,7 @@ async function openEntry(ds){
     const content=await loadEntryContent(ds);
     if(currentDate===ds){  // 確認還在同一篇
       entries[ds].content=content;
-      if(quill){quill.setText("");quill.insertText(0,content);}
+      if(quill)quill.clipboard.dangerouslyPasteHTML(content);
       overlay.remove();
     }
   } else {
@@ -874,11 +924,23 @@ async function openEntry(ds){
   renderCal();renderEntryList();
 }
 function newEntry(){newEntryOnDate(todayStr());}
-function newEntryOnDate(ds){currentDate=ds;calYear=parseInt(ds.slice(0,4));calMonth=parseInt(ds.slice(5,7))-1;showEditorPage();buildEditor(entries[ds]||{});renderCal();renderEntryList();}
+function newEntryOnDate(ds){
+  clearTimeout(autoSaveTimer);
+  const prevDate=currentDate;
+  if(prevDate&&prevDate!==ds){
+    flushCurrentToMemory();
+    persistEntry(prevDate);
+  }
+  currentDate=ds;calYear=parseInt(ds.slice(0,4));calMonth=parseInt(ds.slice(5,7))-1;showEditorPage();buildEditor(entries[ds]||{});renderCal();renderEntryList();
+}
 
 function buildEditor(e){
   const mv=document.getElementById('mood-val');
-  if(mv){mv.textContent=e.mood||'點「儲存並分析」';mv.style.opacity=e.mood?'1':'0.5';}
+  if(mv){
+    mv.textContent=e.mood||'分析後顯示';
+    mv.style.opacity=e.mood?'1':'0.4';
+    if(e.mood)mv.classList.add('has-val'); else mv.classList.remove('has-val');
+  }
   document.getElementById('ai-bar').innerHTML='';
   setSaveStatus('');
 
@@ -895,9 +957,27 @@ function buildEditor(e){
   // 最穩的做法：toolbar 掛在 mount，editor-body 含 title/tags/ql-container
 
   const mount=document.getElementById('quill-mount');
+  // 舊 quill 實例：移除 listener 避免累積
+  if(quill){try{quill.off('text-change',onInput);}catch(e){}}
   mount.innerHTML='';
 
-  // 1. 先在 mount 建一個暫存 div 給 Quill 初始化（toolbar 會插到 mount 裡）
+  // 1. 先建 date-meta-wrap 放進 mount（在 Quill toolbar 之前）
+  const dateMeta=document.createElement('div');
+  dateMeta.id='date-meta-wrap';
+  const dateRow=document.createElement('div');
+  dateRow.id='date-row';
+  const {festival,jieqi}=getDateInfo(currentDate);
+  let dateHtml=`<span class="date-main">${fmtDisplay(currentDate)}</span>`;
+  if(festival) dateHtml+=`<span class="date-dot">·</span><span class="date-festival">${festival}</span>`;
+  else if(jieqi) dateHtml+=`<span class="date-dot">·</span><span class="date-jieqi">${jieqi}</span>`;
+  dateRow.innerHTML=dateHtml;
+  dateMeta.appendChild(dateRow);
+  const wlRow=document.createElement('div');
+  wlRow.id='weather-location-row';
+  dateMeta.appendChild(wlRow);
+  mount.appendChild(dateMeta);
+
+  // 2. 再建暫存 div 給 Quill 初始化（toolbar 自動插在 tempDiv 之前，即 dateMeta 之後）
   const tempDiv=document.createElement('div');
   mount.appendChild(tempDiv);
 
@@ -914,27 +994,9 @@ function buildEditor(e){
   });
   // 現在 mount 結構：.ql-toolbar（Quill 插到 tempDiv 前面）/ tempDiv(.ql-container)
 
-  // 2. 建 editor-body，把 date-meta + title + tags + ql-container 放進去
+  // 3. 建 editor-body，把 title + ql-container 放進去
   const editorBody=document.createElement('div');
   editorBody.id='editor-body';
-
-  // ── date-meta-wrap：日期列 + 天氣地點列 ──
-  const dateMeta=document.createElement('div');
-  dateMeta.id='date-meta-wrap';
-  // 日期列
-  const dateRow=document.createElement('div');
-  dateRow.id='date-row';
-  const {festival,jieqi}=getDateInfo(currentDate);
-  let dateHtml=`<span class="date-main">${fmtDisplay(currentDate)}</span>`;
-  if(festival) dateHtml+=`<span class="date-dot">·</span><span class="date-festival">${festival}</span>`;
-  else if(jieqi) dateHtml+=`<span class="date-dot">·</span><span class="date-jieqi">${jieqi}</span>`;
-  dateRow.innerHTML=dateHtml;
-  dateMeta.appendChild(dateRow);
-  // 天氣地點列
-  const wlRow=document.createElement('div');
-  wlRow.id='weather-location-row';
-  dateMeta.appendChild(wlRow);
-  editorBody.appendChild(dateMeta);
 
   const titleEl=document.createElement('input');
   titleEl.id='title-input';
@@ -944,10 +1006,6 @@ function buildEditor(e){
   titleEl.addEventListener('input',onInput);
   editorBody.appendChild(titleEl);
 
-  const tagsEl=document.createElement('div');
-  tagsEl.id='tags-row';
-  editorBody.appendChild(tagsEl);
-
   // 把 ql-container（即 tempDiv，現在已變成 .ql-container）移進 editorBody
   const qlContainer=mount.querySelector('.ql-container');
   editorBody.appendChild(qlContainer);
@@ -955,13 +1013,15 @@ function buildEditor(e){
   mount.appendChild(editorBody);
   renderTagsRow(e.tags||[], pendingSuggestedTags[currentDate]||[]);
 
-  if(e.content){quill.setText('');quill.insertText(0,e.content);}  // content 可能在 lazy load 後才填入
+  if(e.content)quill.clipboard.dangerouslyPasteHTML(e.content);  // content 可能在 lazy load 後才填入
   quill.on('text-change',onInput);
   // IME 組字時隱藏 placeholder，避免畫面重疊
   quill.root.addEventListener('compositionstart',()=>quill.root.classList.add('ime-composing'));
   quill.root.addEventListener('compositionend',()=>quill.root.classList.remove('ime-composing'));
   renderWeatherLocation(e);
   renderOtd();
+  updateWordCount();
+  updateNavButtons();
 }
 
 // ── 節日 & 節氣 ──
@@ -1244,11 +1304,8 @@ async function fetchLocation(lat,lon){
 }
 
 function renderTagsRow(tags, suggestedTags){
-  const row=document.getElementById('tags-row');if(!row)return;
-  const suggested=(suggestedTags||[]).filter(t=>!(tags||[]).includes(t));
-  const confirmedHtml=(tags||[]).map(t=>`<span class="tag-chip" onclick="removeTag('${t}')">${t} ×</span>`).join('');
-  const suggestedHtml=suggested.map(t=>`<span class="tag-chip-suggested" onclick="acceptSuggestedTag('${t}')" title="點擊加入">＋ ${t}<span class="tag-x" onclick="event.stopPropagation();dismissSuggestedTag('${t}')">×</span></span>`).join('');
-  row.innerHTML=confirmedHtml+suggestedHtml+`<span class="tag-add" onclick="addTagPrompt()">＋ 標籤</span>`;
+  // tags-row removed; all tag display now in ai-summary-bar (#ai-tag-chips)
+  renderAISummaryTags(tags, suggestedTags);
 }
 function renderOtd(){
   if(!currentDate)return;
@@ -1292,7 +1349,78 @@ function renderOtd(){
   eb.insertBefore(div,eb.firstChild);
 }
 
-function onInput(){setSaveStatus('saving');clearTimeout(autoSaveTimer);autoSaveTimer=setTimeout(()=>doSave(),1500);}
+function onInput(){
+  setSaveStatus('saving');
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer=setTimeout(()=>{
+    flushCurrentToMemory();
+    const ds=currentDate;
+    persistEntry(ds).then(()=>{
+      if(currentDate===ds){setSaveStatus('saved');renderEntryList();renderCal();setTimeout(()=>setSaveStatus(''),2500);}
+    });
+  },1500);
+  updateWordCount();
+}
+function updateWordCount(){
+  const wc=document.getElementById('word-count');
+  if(!wc||!quill)return;
+  const text=quill.getText().replace(/\n/g,'').trim();
+  const count=[...text].length;
+  wc.textContent=count?count+' 字':'0 字';
+}
+function navEntry(dir){
+  // sorted newest-first; 上一篇(dir=-1)=更新; 下一篇(dir=1)=更舊
+  const sorted=Object.keys(entries).sort((a,b)=>b.localeCompare(a)); // newest first
+  const idx=sorted.indexOf(currentDate);
+  if(idx===-1)return;
+  const target=sorted[idx+dir];
+  if(target)openEntry(target);
+}
+function updateNavButtons(){
+  const sorted=Object.keys(entries).sort((a,b)=>b.localeCompare(a)); // newest first
+  const idx=sorted.indexOf(currentDate);
+  const prev=document.getElementById('prev-entry-btn');
+  const next=document.getElementById('next-entry-btn');
+  // 上一篇(prev) = 更新的 = 更小的 idx; 下一篇(next) = 更舊的 = 更大的 idx
+  if(prev)prev.disabled=(idx<=0);
+  if(next)next.disabled=(idx===-1||idx>=sorted.length-1);
+}
+function renderAISummaryTags(tags, suggestedTags){
+  const bar=document.getElementById('ai-tag-chips');
+  if(!bar)return;
+  bar.innerHTML='';
+  const confirmed=tags||[];
+  const suggested=(suggestedTags||[]).filter(t=>!confirmed.includes(t));
+  // confirmed tags (clickable to remove)
+  confirmed.forEach(t=>{
+    const chip=document.createElement('span');
+    chip.className='tag-chip';
+    chip.innerHTML=`${t} <span style="opacity:0.6;">×</span>`;
+    chip.onclick=()=>removeTag(t);
+    bar.appendChild(chip);
+  });
+  // suggested tags (dashed, click to accept, × to dismiss)
+  suggested.forEach(t=>{
+    const chip=document.createElement('span');
+    chip.className='tag-chip-suggested';
+    chip.title='點擊加入標籤';
+    const label=document.createElement('span');
+    label.textContent='＋ '+t;
+    label.onclick=()=>acceptSuggestedTag(t);
+    const x=document.createElement('span');
+    x.className='tag-x';
+    x.textContent='×';
+    x.onclick=(e)=>{e.stopPropagation();dismissSuggestedTag(t);};
+    chip.appendChild(label);chip.appendChild(x);
+    bar.appendChild(chip);
+  });
+  // ＋ 標籤 button
+  const addBtn=document.createElement('span');
+  addBtn.className='tag-add';
+  addBtn.textContent='＋ 標籤';
+  addBtn.onclick=addTagPrompt;
+  bar.appendChild(addBtn);
+}
 function setSaveStatus(s){const el=document.getElementById('save-status');if(!el)return;if(s==='saving'){el.textContent='儲存中...';el.className='save-status saving';}else if(s==='saved'){el.textContent='已儲存';el.className='save-status';}else{el.textContent='';el.className='save-status';}}
 
 
@@ -1309,21 +1437,13 @@ async function doSaveIndexOnly(ds){
     location:e.location||''
   }});
 }
+// doSave：flush DOM → persist 當前篇（autosave 和手動儲存用）
 async function doSave(){
-  if(!currentDate||currentDate==='null'||!/^\d{4}-\d{2}-\d{2}$/.test(currentDate))return;
-  if(!entries[currentDate])entries[currentDate]={title:'',content:'',tags:[],mood:'',weather:'',location:''};
-  const ti=document.getElementById('title-input');if(ti)entries[currentDate].title=ti.value;
-  if(quill)entries[currentDate].content=quill.root.innerHTML;
-  // 防呆：標題和內文都是空的，不儲存並移除空殼
-  const isEmpty=!(entries[currentDate].title?.trim())&&!getPlain(entries[currentDate].content||'').trim();
-  if(isEmpty){
-    delete entries[currentDate];
-    lsDel(CACHE_PREFIX+currentDate);
-    await callGAS('deleteEntry',{date:currentDate});
-    renderEntryList();renderCal();setSaveStatus('');return;
-  }
-  await saveEntries();setSaveStatus('saved');renderEntryList();renderCal();
-  setTimeout(()=>setSaveStatus(''),2500);
+  if(!currentDate||!/^\d{4}-\d{2}-\d{2}$/.test(currentDate))return;
+  flushCurrentToMemory();
+  const ds=currentDate; // snapshot，避免 await 期間被改掉
+  await persistEntry(ds);
+  if(currentDate===ds){setSaveStatus('saved');renderEntryList();renderCal();setTimeout(()=>setSaveStatus(''),2500);}
 }
 
 function addTagPrompt(){
@@ -1339,11 +1459,12 @@ function addTagPrompt(){
   picker.id='tag-picker';
   picker.style.cssText='position:fixed;z-index:9999;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:8px;min-width:200px;box-shadow:0 4px 16px rgba(0,0,0,0.5);';
 
-  const row=document.getElementById('tags-row');
-  if(row){
-    const r=row.getBoundingClientRect();
-    picker.style.top=(r.bottom+4)+'px';
+  const anchor=document.getElementById('ai-tag-chips')||document.getElementById('ai-summary-bar');
+  if(anchor){
+    const r=anchor.getBoundingClientRect();
+    picker.style.bottom=(window.innerHeight-r.top+4)+'px';
     picker.style.left=r.left+'px';
+    picker.style.top='';
   }
 
   // 已有標籤區
@@ -1465,7 +1586,8 @@ function dismissSuggestedTag(t){
 async function saveAndAnalyze(){
   const btn=document.getElementById('analyze-btn');
   if(btn){btn.disabled=true;btn.textContent='分析中...';}
-  await doSave();
+  // doSave 失敗不阻擋 analyzeMood，兩者獨立執行
+  try{await doSave();}catch(e){}
   await analyzeMood();
   if(btn){btn.disabled=false;btn.textContent='✨ 儲存並分析';}
 }
@@ -1498,7 +1620,8 @@ async function analyzeMood(){
         weather:entries[currentDate].weather||'',
         location:entries[currentDate].location||''
       }});
-      const mv=document.getElementById('mood-val');if(mv){mv.textContent=parsed.mood;mv.style.opacity='1';}
+      const mv=document.getElementById('mood-val');
+      if(mv){mv.textContent=parsed.mood;mv.style.opacity='1';mv.classList.add('has-val');}
     }
     if(parsed.tags&&parsed.tags.length&&entries[currentDate]){
       const ex=entries[currentDate].tags||[];
@@ -1506,6 +1629,7 @@ async function analyzeMood(){
       if(newSuggested.length){
         pendingSuggestedTags[currentDate]=newSuggested;
         renderTagsRow(entries[currentDate].tags, newSuggested);
+        renderAISummaryTags(entries[currentDate].tags||[], newSuggested);
       }
     }
   }catch(e){}
@@ -1730,10 +1854,10 @@ function saveSettings(){
 function applyAISettings(){
   const askBtn=document.querySelector('.ai-btn');
   const analyzeBtn=document.getElementById('analyze-btn');
-  const moodBar=document.querySelector('.mood-bar');
+  const summaryBar=document.getElementById('ai-summary-bar');
   if(askBtn)askBtn.style.display=appSettings.aiWriting?'':'none';
   if(analyzeBtn)analyzeBtn.style.display=appSettings.aiMood?'':'none';
-  if(moodBar)moodBar.style.display=appSettings.aiMood?'':'none';
+  if(summaryBar)summaryBar.style.display=appSettings.aiMood?'':'none';
 }
 
 const fontSizeMap={
