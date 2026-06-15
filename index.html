@@ -639,10 +639,10 @@ async function saveEntries(){
   const e=entries[currentDate];
   const plain=getPlain(e.content||'');
 
-  // 1. 寫 .md 檔（content 存 Drive）
+  // 1. 寫 .md 檔（存純文字，避免 HTML encode 後 URL 過長）
   await callGAS('writeEntry',{
     date:currentDate,
-    content:e.content||''
+    content:plain||''
   });
 
   // 2. 更新 index 單筆（列表所需欄位，不含 content）
@@ -658,8 +658,8 @@ async function saveEntries(){
     }
   });
 
-  // 3. 同步更新 localStorage content cache
-  lsSet(CACHE_PREFIX+currentDate, e.content||'');
+  // 3. 同步更新 localStorage content cache（純文字）
+  lsSet(CACHE_PREFIX+currentDate, plain||'');
   // 4. 同步更新 index cache
   lsSet(INDEX_CACHE_KEY, JSON.stringify(entries));
 }
@@ -863,7 +863,7 @@ async function openEntry(ds){
     const content=await loadEntryContent(ds);
     if(currentDate===ds){  // 確認還在同一篇
       entries[ds].content=content;
-      if(quill)quill.clipboard.dangerouslyPasteHTML(content);
+      if(quill){quill.setText("");quill.insertText(0,content);}
       overlay.remove();
     }
   } else {
@@ -953,7 +953,7 @@ function buildEditor(e){
   mount.appendChild(editorBody);
   renderTagsRow(e.tags||[], pendingSuggestedTags[currentDate]||[]);
 
-  if(e.content)quill.clipboard.dangerouslyPasteHTML(e.content);  // content 可能在 lazy load 後才填入
+  if(e.content){quill.setText('');quill.insertText(0,e.content);}  // content 可能在 lazy load 後才填入
   quill.on('text-change',onInput);
   // IME 組字時隱藏 placeholder，避免畫面重疊
   quill.root.addEventListener('compositionstart',()=>quill.root.classList.add('ime-composing'));
