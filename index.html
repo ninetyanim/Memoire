@@ -672,7 +672,9 @@ async function loadEntryContent(ds){
   // cache miss，從 Drive 抓
   try{
     const res=await callGAS('readEntry',{date:ds});
-    const content=res.content||'';
+    // 相容舊 HTML 格式：如果含有 HTML 標籤則自動轉純文字
+    const raw=res.content||'';
+    const content=/<[a-z][\s\S]*>/i.test(raw)?getPlain(raw):raw;
     lsSet(CACHE_PREFIX+ds, content);
     return content;
   }catch(e){return '';}
