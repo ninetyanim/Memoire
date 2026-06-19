@@ -124,6 +124,20 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
 .ql-snow .ql-picker-item:hover,.ql-snow .ql-picker-item.ql-selected{color:var(--text-title) !important;}
 .ql-snow .ql-tooltip{background:var(--card-bg) !important;border-color:var(--border) !important;color:var(--text-body) !important;z-index:10;}
 
+/* 底色按鈕：圖示 + 下方目前選色提示條 */
+.ql-toolbar.ql-snow .ql-highlight{display:flex !important;flex-direction:column;align-items:center;justify-content:center;gap:1px;width:28px;height:28px;padding:2px 0 3px !important;}
+.ql-toolbar.ql-snow .ql-highlight svg{width:14px;height:14px;}
+.ql-hl-bar{width:14px;height:3px;border-radius:2px;background:rgba(255,224,80,0.9);opacity:0.25;flex-shrink:0;}
+
+/* 底色色盤 popup */
+.hl-palette{position:fixed;display:flex;gap:5px;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:7px;z-index:50;}
+.hl-swatch{width:24px;height:24px;border:1.5px solid transparent;border-radius:5px;cursor:pointer;padding:0;font-size:11px;color:var(--text-muted);}
+.hl-swatch:hover{border-color:var(--text-title);}
+.hl-swatch.hl-none{background:transparent;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;}
+
+/* 分隔線：純視覺橫線 */
+.ql-editor hr{border:none;border-top:1px solid var(--border);margin:14px 0;}
+
 /* editor-body: title → tags → quill content，flex column，可捲動 */
 #editor-body{flex:1;display:flex;flex-direction:column;overflow:hidden;}
 
@@ -164,7 +178,7 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
 /* Quill editor */
 .ql-container.ql-snow{border:none !important;flex:1;overflow-y:auto;font-family:'Microsoft JhengHei','PingFang TC',sans-serif !important;}
 .ql-editor{color:var(--text-body) !important;font-size:var(--fs-body) !important;line-height:var(--editor-line-height,1.8) !important;padding:12px 16px 60px !important;background:var(--bg);}
-.ql-editor h1,.ql-editor h2{color:var(--text-title);}
+.ql-editor h1,.ql-editor h2{color:var(--text-title);font-size:var(--fs-subtitle) !important;font-weight:600;}
 .ql-editor .ts-divider{display:block;text-align:center;color:var(--text-muted);font-size:var(--fs-small);letter-spacing:2px;margin:12px 0;pointer-events:none;user-select:none;}
 .ql-editor.ql-blank::before{color:var(--text-muted) !important;font-style:normal !important;}
 .ql-editor.ime-composing::before{display:none !important;}
@@ -225,6 +239,9 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
 .ai-question{background:var(--card-bg);border:1px solid var(--border);border-radius:7px;padding:8px 12px;font-size:var(--fs-btn);color:var(--accent-light);display:flex;align-items:flex-start;gap:6px;animation:fadeIn 0.25s;}
 .ai-q-close{margin-left:auto;color:var(--text-muted);font-size:var(--fs-btn);cursor:pointer;}
 .ai-q-close:hover{color:var(--text-title);}
+.ai-q-paste{margin-left:auto;color:var(--accent-light);font-size:var(--fs-btn);cursor:pointer;white-space:nowrap;}
+.ai-q-paste:hover{color:var(--text-title);}
+.ai-q-close{margin-left:8px;}
 .action-bar{padding:7px 16px;border-top:1px solid var(--border);display:flex;align-items:center;gap:6px;}
 .ts-btn{background:none;border:1px solid var(--border);border-radius:5px;padding:5px 10px;font-size:var(--fs-btn);color:var(--text-muted);cursor:pointer;font-family:inherit;}
 .ts-btn:hover{border-color:var(--accent-light);color:var(--accent-light);}
@@ -592,7 +609,14 @@ function isMobileDevice(){return window.innerWidth<=767;}
 function getSetK(){return isMobileDevice()?'memoire_v10_settings_mobile':'memoire_v10_settings_desktop';}
 function getDefaultFontSize(){return isMobileDevice()?'large':'medium';}
 
-let entries={},currentDate=null,quill=null;
+let entries={},currentDate=null,quill=null,pendingAIQuestion='';
+
+// ── 自訂分隔線 blot（純視覺橫線，跳脫時間戳記區塊用）──
+const BlockEmbed=Quill.import('blots/block/embed');
+class DividerBlot extends BlockEmbed{}
+DividerBlot.blotName='divider';
+DividerBlot.tagName='hr';
+Quill.register(DividerBlot);
 let calYear=new Date().getFullYear(),calMonth=new Date().getMonth();
 let autoSaveTimer=null,sidebarOpen=true;
 let pendingSuggestedTags={};
@@ -984,14 +1008,38 @@ function buildEditor(e){
   quill=new Quill(tempDiv,{
     theme:'snow',
     placeholder:'今天想寫什麼...',
-    modules:{toolbar:[
-      ['bold','italic','underline'],
-      [{header:[1,2,false]}],
-      [{list:'ordered'},{list:'bullet'}],
-      ['blockquote','code-block'],
-      ['clean']
-    ]}
+    modules:{toolbar:{
+      container:[
+        ['bold','italic','underline'],
+        [{header:2}],
+        ['highlight'],
+        [{list:'ordered'},{list:'bullet'},'blockquote'],
+        ['code-block','divider'],
+        ['clean']
+      ],
+      handlers:{
+        divider:function(){
+          const range=this.quill.getSelection(true);
+          const pos=range?range.index:this.quill.getLength();
+          this.quill.insertEmbed(pos,'divider',true,'user');
+          this.quill.insertText(pos+1,'\n','user');
+          this.quill.setSelection(pos+2,0);
+        },
+        highlight:function(){
+          toggleHighlightPalette(this.quill,document.querySelector('.ql-highlight'));
+        }
+      }
+    }}
   });
+  // highlight / divider 按鈕內容（Quill 不認得自訂格式名，圖示需手動補）
+  const hlBtn=document.querySelector('.ql-highlight');
+  if(hlBtn){
+    hlBtn.innerHTML='<svg viewBox="0 0 18 18"><path class="ql-stroke" d="M7.5 12.5 3 17H1v-2l4.5-4.5"/><path class="ql-stroke" d="M6 11l5-5 3 3-5 5z"/><path class="ql-stroke" style="fill:none;" d="M11 6l2.5-2.5a1.5 1.5 0 0 1 2 2L13 8"/></svg><span class="ql-hl-bar"></span>';
+  }
+  const divBtn=document.querySelector('.ql-divider');
+  if(divBtn){
+    divBtn.innerHTML='<svg viewBox="0 0 18 18"><line class="ql-stroke" x1="2" y1="9" x2="16" y2="9"/></svg>';
+  }
   // 現在 mount 結構：.ql-toolbar（Quill 插到 tempDiv 前面）/ tempDiv(.ql-container)
 
   // 3. 建 editor-body，把 title + ql-container 放進去
@@ -1587,9 +1635,9 @@ async function saveAndAnalyze(){
   const btn=document.getElementById('analyze-btn');
   if(btn){btn.disabled=true;btn.textContent='分析中...';}
   // doSave 失敗不阻擋 analyzeMood，兩者獨立執行
-  try{await doSave();}catch(e){}
+  try{await doSave();}catch(e){console.error('[saveAndAnalyze] doSave 失敗（不影響後續分析）:',e);}
   await analyzeMood();
-  if(btn){btn.disabled=false;btn.textContent='✨ 儲存並分析';}
+  if(btn){btn.disabled=false;btn.textContent='✨ 分析';}
 }
 
 async function analyzeMood(){
@@ -1599,7 +1647,9 @@ async function analyzeMood(){
   try{
     const system='你是日記情緒分析助手，使用繁體中文。只輸出 JSON，格式：{"mood":"emoji+2-4字","tags":["標籤1","標籤2"]}，不要其他文字。';
     const prompt=`標題：${title}\n內容：${content.slice(0,500)}`;
+    console.log('[analyzeMood] prompt 長度:',prompt.length,'| 預估 GET URL 長度:',encodeURIComponent(JSON.stringify({system,prompt})).length);
     const data=await callGAS('gemini',{system,prompt});
+    console.log('[analyzeMood] GAS 回傳:',data);
     if(data.quota){
       const mv=document.getElementById('mood-val');
       if(mv){mv.textContent='今日配額已用盡';mv.style.opacity='0.5';}
@@ -1607,8 +1657,18 @@ async function analyzeMood(){
     }
     const raw=data.text||'';
     const match=raw.match(/\{[\s\S]*\}/);
-    if(!match)throw new Error('no JSON');
-    const parsed=JSON.parse(match[0]);
+    if(!match){
+      console.error('[analyzeMood] 回傳內容找不到 JSON，原始 raw:',JSON.stringify(raw));
+      throw new Error('no JSON');
+    }
+    let parsed;
+    try{
+      parsed=JSON.parse(match[0]);
+    }catch(parseErr){
+      console.error('[analyzeMood] JSON.parse 失敗，擷取到的字串:',match[0],'| 錯誤:',parseErr);
+      throw parseErr;
+    }
+    console.log('[analyzeMood] 解析後 parsed:',parsed);
     if(parsed.mood&&entries[currentDate]){
       entries[currentDate].mood=parsed.mood;
       // mood 只更新 index，不需重寫 .md
@@ -1632,7 +1692,9 @@ async function analyzeMood(){
         renderAISummaryTags(entries[currentDate].tags||[], newSuggested);
       }
     }
-  }catch(e){}
+  }catch(e){
+    console.error('[analyzeMood] 整體失敗:',e);
+  }
 }
 
 function showImageComingSoon(){
@@ -1667,6 +1729,86 @@ function insertTimestamp(){
   onInput();
 }
 
+function insertAIQuestion(){
+  if(!quill||!pendingAIQuestion)return;
+  const q=pendingAIQuestion;
+  const pos=quill.getLength();
+  quill.insertText(pos,String.fromCharCode(10),'user');
+  quill.insertText(pos+1,q,'user');
+  quill.formatLine(pos+1,1,'blockquote',true,'user');
+  quill.insertText(pos+1+q.length,String.fromCharCode(10),'user');
+  quill.formatLine(pos+1+q.length+1,1,'blockquote',false,'user');
+  quill.setSelection(pos+2+q.length,0);
+  onInput();
+  pendingAIQuestion='';
+  const bar=document.getElementById('ai-bar');
+  if(bar)bar.innerHTML='';
+}
+
+// ── 底色（螢光筆）色盤 ──
+const HL_COLORS=[
+  {name:'黃',bg:'rgba(255,224,80,0.35)',bar:'rgba(255,224,80,0.9)'},
+  {name:'綠',bg:'rgba(110,220,140,0.30)',bar:'rgba(110,220,140,0.9)'},
+  {name:'粉',bg:'rgba(255,120,170,0.30)',bar:'rgba(255,120,170,0.9)'},
+  {name:'藍',bg:'rgba(90,170,255,0.30)',bar:'rgba(90,170,255,0.9)'}
+];
+let hlPaletteEl=null,hlSavedRange=null;
+
+function closeHighlightPalette(){
+  if(hlPaletteEl){hlPaletteEl.remove();hlPaletteEl=null;}
+  document.removeEventListener('mousedown',onHlOutsideClick,true);
+}
+function onHlOutsideClick(ev){
+  if(hlPaletteEl&&!hlPaletteEl.contains(ev.target)&&!ev.target.closest('.ql-highlight')){
+    closeHighlightPalette();
+  }
+}
+function toggleHighlightPalette(quillInst,btnEl){
+  if(hlPaletteEl){closeHighlightPalette();return;}
+  hlSavedRange=quillInst.getSelection();
+  if(!hlSavedRange||hlSavedRange.length===0){return;} // 沒有選取文字時不開色盤
+  const pal=document.createElement('div');
+  pal.className='hl-palette';
+  HL_COLORS.forEach(c=>{
+    const sw=document.createElement('button');
+    sw.type='button';
+    sw.className='hl-swatch';
+    sw.style.background=c.bar;
+    sw.title=c.name;
+    sw.onclick=()=>{
+      quillInst.formatText(hlSavedRange.index,hlSavedRange.length,'background',c.bg,'user');
+      updateHighlightBar(c.bar);
+      closeHighlightPalette();
+      onInput();
+    };
+    pal.appendChild(sw);
+  });
+  const noneBtn=document.createElement('button');
+  noneBtn.type='button';
+  noneBtn.className='hl-swatch hl-none';
+  noneBtn.title='清除底色';
+  noneBtn.innerHTML='✕';
+  noneBtn.onclick=()=>{
+    quillInst.formatText(hlSavedRange.index,hlSavedRange.length,'background',false,'user');
+    updateHighlightBar(null);
+    closeHighlightPalette();
+    onInput();
+  };
+  pal.appendChild(noneBtn);
+  document.body.appendChild(pal);
+  const r=btnEl.getBoundingClientRect();
+  pal.style.top=(r.bottom+4)+'px';
+  pal.style.left=r.left+'px';
+  hlPaletteEl=pal;
+  document.addEventListener('mousedown',onHlOutsideClick,true);
+}
+function updateHighlightBar(barColor){
+  const bar=document.querySelector('.ql-highlight .ql-hl-bar');
+  if(!bar)return;
+  if(barColor){bar.style.background=barColor;bar.style.opacity='1';}
+  else{bar.style.opacity='0.25';}
+}
+
 async function askAI(){
   const content=quill?quill.root.innerText.trim():'';
   const bar=document.getElementById('ai-bar');
@@ -1680,7 +1822,12 @@ async function askAI(){
       return;
     }
     const q=data.text?.trim()||'';
-    if(q&&bar)bar.innerHTML=`<div class="ai-question"><span style="flex:1;">${q}</span><span class="ai-q-close" onclick="document.getElementById('ai-bar').innerHTML=''">×</span></div>`;
+    if(q&&bar){
+      pendingAIQuestion=q;
+      bar.innerHTML=`<div class="ai-question"><span style="flex:1;" id="ai-q-text"></span><span class="ai-q-paste" onclick="insertAIQuestion()">貼上</span><span class="ai-q-close" onclick="document.getElementById('ai-bar').innerHTML=''">×</span></div>`;
+      const qEl=document.getElementById('ai-q-text');
+      if(qEl)qEl.textContent=q;
+    }
   }catch(e){if(bar)bar.innerHTML=`<div class="ai-question" style="color:var(--text-muted);">AI 暫時無法連線。</div>`;}
 }
 
