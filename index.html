@@ -580,6 +580,12 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
 
         </div>
 
+        <div class="settings-section">
+          <div class="settings-row">
+            <div class="settings-label-wrap"><div class="settings-label" style="color:var(--text-muted);font-size:var(--fs-small);">版本 <span id="app-version-label"></span></div></div>
+          </div>
+        </div>
+
       </div>
     </div>
   </div>
@@ -609,6 +615,12 @@ async function callGAS(action, extra={}) {
 }
 
 const TK='memoire_v10_theme';
+const APP_VERSION='v38';  // 主程式版本號，跟 sw.js 的 CACHE_NAME 要一起改
+console.log('[Memoire] '+APP_VERSION);
+document.addEventListener('DOMContentLoaded',()=>{
+  const el=document.getElementById('app-version-label');
+  if(el)el.textContent=APP_VERSION;
+});
 const CACHE_PREFIX='memoire_v10_content_';  // localStorage key prefix for content cache
 const INDEX_CACHE_KEY='memoire_v10_index';   // localStorage key for index cache
 
