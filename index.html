@@ -573,6 +573,10 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
             <div class="settings-label-wrap"><div class="settings-label">匯出 index 快取（除錯用）</div><div class="settings-desc">暫時功能，救援 index.json 用，之後會移除</div></div>
             <button class="settings-action-btn" onclick="exportIndexJSON()">匯出 JSON</button>
           </div>
+          <div class="settings-row">
+            <div class="settings-label-wrap"><div class="settings-label">還原備份</div><div class="settings-desc">index.json 每天自動備份一次，可還原到指定日期</div></div>
+            <button class="settings-action-btn" onclick="openBackupModal()">還原備份</button>
+          </div>
 
         </div>
 
@@ -2068,6 +2072,63 @@ function exportIndexJSON(){
   a.download=`memoire-index-backup-${platform}-${new Date().toISOString().slice(0,10)}.json`;
   a.click();
   URL.revokeObjectURL(a.href);
+}
+
+// ── 備份還原 ──
+function closeBackupModal(){
+  const el=document.getElementById('backup-modal-overlay');
+  if(el)el.remove();
+}
+
+async function openBackupModal(){
+  closeBackupModal();
+  const overlay=document.createElement('div');
+  overlay.id='backup-modal-overlay';
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:300;display:flex;align-items:center;justify-content:center;';
+  overlay.onclick=(e)=>{if(e.target===overlay)closeBackupModal();};
+  overlay.innerHTML=`
+    <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:20px;width:320px;max-height:70vh;display:flex;flex-direction:column;">
+      <div style="font-size:var(--fs-subtitle);font-weight:600;color:var(--text-title);margin-bottom:4px;">還原備份</div>
+      <div style="font-size:var(--fs-small);color:var(--text-muted);margin-bottom:14px;">index.json 每天自動備份一次，選擇一個日期還原</div>
+      <div id="backup-list" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:6px;">
+        <div style="font-size:var(--fs-btn);color:var(--text-muted);text-align:center;padding:20px 0;">載入中...</div>
+      </div>
+      <button onclick="closeBackupModal()" style="margin-top:14px;align-self:flex-end;background:none;border:1px solid var(--border);color:var(--text-body);border-radius:6px;padding:6px 14px;font-size:var(--fs-btn);cursor:pointer;">關閉</button>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  try{
+    const res=await callGAS('listBackups');
+    if(res.error)throw new Error(res.error);
+    const listEl=document.getElementById('backup-list');
+    if(!res.dates||!res.dates.length){
+      listEl.innerHTML='<div style="font-size:var(--fs-btn);color:var(--text-muted);text-align:center;padding:20px 0;">目前還沒有任何備份</div>';
+      return;
+    }
+    listEl.innerHTML=res.dates.map(d=>`
+      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--hover);border-radius:6px;padding:8px 10px;">
+        <span style="font-size:var(--fs-body);color:var(--text-body);">${d}</span>
+        <button onclick="doRestoreBackup('${d}')" style="background:var(--accent);color:#fff;border:none;border-radius:5px;padding:4px 10px;font-size:var(--fs-small);cursor:pointer;">還原</button>
+      </div>`).join('');
+  }catch(e){
+    document.getElementById('backup-list').innerHTML=`<div style="font-size:var(--fs-btn);color:var(--text-muted);text-align:center;padding:20px 0;">讀取失敗：${e.message}</div>`;
+  }
+}
+
+async function doRestoreBackup(date){
+  if(!confirm(`確定要把 index.json 還原到 ${date} 的備份嗎？\n\n目前的內容會先另外存一份安全快照，之後如果還原錯了還能再救回來。`))return;
+  const listEl=document.getElementById('backup-list');
+  listEl.innerHTML='<div style="font-size:var(--fs-btn);color:var(--text-muted);text-align:center;padding:20px 0;">還原中...</div>';
+  try{
+    const res=await callGAS('restoreFromBackup',{date});
+    if(res.error)throw new Error(res.error);
+    alert(`已還原到 ${date}（共 ${res.count} 篇）。App 即將重新整理列表。`);
+    closeBackupModal();
+    lsDel(INDEX_CACHE_KEY);
+    await loadEntries();
+  }catch(e){
+    listEl.innerHTML=`<div style="font-size:var(--fs-btn);color:var(--text-muted);text-align:center;padding:20px 0;">還原失敗：${e.message}</div>`;
+  }
 }
 
 function exportEntries(){
