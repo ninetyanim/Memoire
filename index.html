@@ -569,6 +569,10 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
             <div class="settings-label-wrap"><div class="settings-label">匯出所有日記</div></div>
             <button class="settings-action-btn" onclick="exportEntries()">匯出 .md</button>
           </div>
+          <div class="settings-row">
+            <div class="settings-label-wrap"><div class="settings-label">匯出 index 快取（除錯用）</div><div class="settings-desc">暫時功能，救援 index.json 用，之後會移除</div></div>
+            <button class="settings-action-btn" onclick="exportIndexJSON()">匯出 JSON</button>
+          </div>
 
         </div>
 
@@ -1931,12 +1935,15 @@ async function renameTag(oldName){
 async function deleteTag(name){
   if(!confirm(`確定要刪除標籤「${name}」？
 （不會刪除日記本身）`))return;
+  // 修正（v37）：原本用 length>=0 篩選「受影響日記」，這個條件恆為真，
+  // 等於每次刪標籤都會對「全部日記」觸發 writeIndex（曾造成數百筆並發請求）。
+  // 改成：只挑刪除前真的含有這個標籤的日記。
+  const affected=Object.keys(entries).filter(ds=>(entries[ds].tags||[]).includes(name));
   Object.keys(entries).forEach(ds=>{
     entries[ds].tags=(entries[ds].tags||[]).filter(t=>t!==name);
   });
   if(activeFilterTag===name)activeFilterTag=null;
-  // 批次更新所有受影響日記的 index
-  const affected=Object.keys(entries).filter(ds=>(entries[ds].tags||[]).length>=0);
+  // 批次更新受影響日記的 index
   await Promise.all(affected.map(ds=>callGAS('writeIndex',{date:ds,entry:{
     title:entries[ds].title||'',preview:getPlain(entries[ds].content||'').slice(0,100),
     tags:entries[ds].tags||[],mood:entries[ds].mood||'',weather:entries[ds].weather||'',location:entries[ds].location||''
@@ -2044,6 +2051,23 @@ function applyLineHeight(lh){
   document.documentElement.style.setProperty('--editor-line-height',val);
   // 直接更新 Quill editor 行距
   document.querySelectorAll('.ql-editor').forEach(el=>el.style.lineHeight=val);
+}
+
+// ── 暫時除錯用：匯出目前 localStorage 裡的 index 快取原始 JSON ──
+// 用途：index.json 曾被寫壞成空檔，用來搶救各裝置上還留著的 index 快取。
+// 救援完成後可移除此函式與對應按鈕。
+function exportIndexJSON(){
+  const cached=lsGet(INDEX_CACHE_KEY);
+  const data=cached||JSON.stringify(entries);
+  const count=Object.keys(JSON.parse(data)||{}).length;
+  if(!confirm(`即將匯出目前快取中的 ${count} 篇日記索引，確定嗎？`))return;
+  const blob=new Blob([data],{type:'application/json'});
+  const a=document.createElement('a');
+  const platform=isMobileDevice()?'mobile':'desktop';
+  a.href=URL.createObjectURL(blob);
+  a.download=`memoire-index-backup-${platform}-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 function exportEntries(){
