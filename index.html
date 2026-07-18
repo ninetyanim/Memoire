@@ -615,7 +615,7 @@ async function callGAS(action, extra={}) {
 }
 
 const TK='memoire_v10_theme';
-const APP_VERSION='v39';  // 主程式版本號，跟 sw.js 的 CACHE_NAME 要一起改
+const APP_VERSION='v40';  // 主程式版本號，跟 sw.js 的 CACHE_NAME 要一起改
 console.log('[Memoire] '+APP_VERSION);
 document.addEventListener('DOMContentLoaded',()=>{
   const el=document.getElementById('app-version-label');
@@ -766,6 +766,37 @@ async function prefetchRecentEntries(n){
 // 儲存單筆日記到 Drive（.md + index 單筆 merge）
 // ── 資料層：三個明確分工的函數 ──
 
+// ── isDirty 判斷工具（v40 新增）──
+// 記錄「進入編輯器當下」六個欄位的快照，離開時用來判斷有沒有真的變動過
+// 避免 goBack()/openEntry() 無條件存檔覆蓋正確資料（2021-07-17 事故根因）
+let entrySnapshotDate=null, entrySnapshot=null;
+
+function fieldsSnapshot(ds){
+  const e=entries[ds];
+  if(!e)return null;
+  return JSON.stringify({
+    title:e.title||'',
+    content:quill?quill.root.innerHTML:(e.content||''), // 讀 quill 現況而非 e.content，避開 dangerouslyPasteHTML 對 HTML 的正常化差異
+    tags:e.tags||[],
+    mood:e.mood||'',
+    weather:e.weather||'',
+    location:e.location||''
+  });
+}
+
+// 進入一篇日記、內容已完整載入時呼叫，記下當下狀態當基準
+function captureSnapshot(ds){
+  entrySnapshotDate=ds;
+  entrySnapshot=fieldsSnapshot(ds);
+}
+
+// 判斷離開時，這篇日記是否真的跟「進入當下」不一樣
+// 找不到對應快照時保守回傳 true（寧可多存，不要漏存）
+function isEntryDirty(ds){
+  if(entrySnapshotDate!==ds)return true;
+  return fieldsSnapshot(ds)!==entrySnapshot;
+}
+
 // 1. 把 DOM 當前值同步進 entries memory（純同步，不 async，不碰 GAS）
 function flushCurrentToMemory(){
   if(!currentDate)return;
@@ -810,6 +841,7 @@ async function persistEntry(ds){
   ]);
   lsSet(CACHE_PREFIX+ds,e.content||''); // cache 存的是不含 front matter 的乾淨內文
   lsSet(INDEX_CACHE_KEY,JSON.stringify(entries));
+  if(currentDate===ds){entrySnapshotDate=ds;entrySnapshot=fieldsSnapshot(ds);} // 只在還停留在同一篇時更新基準，離開後背景存的不動全域快照
 }
 
 // 3. 相容舊呼叫 saveEntries()
@@ -1007,7 +1039,7 @@ async function goBack(){
       callGAS('deleteEntry',{date:ds});
     } else {
       showListPage();
-      persistEntry(ds);
+      if(isEntryDirty(ds))persistEntry(ds);
     }
   } else {
     showListPage();
@@ -1018,7 +1050,7 @@ async function openEntry(ds){
   const prevDate=currentDate;
   if(prevDate&&prevDate!==ds){
     flushCurrentToMemory();           // 同步：DOM → memory
-    persistEntry(prevDate);           // 非同步背景儲存舊篇（已從 memory 讀，不依賴 DOM 或 currentDate）
+    if(isEntryDirty(prevDate))persistEntry(prevDate);  // 只有真的變動過才背景存檔（v40）
   }
   currentDate=ds;calYear=parseInt(ds.slice(0,4));calMonth=parseInt(ds.slice(5,7))-1;
   // 若 content 尚未載入（lazy load）
@@ -1034,11 +1066,18 @@ async function openEntry(ds){
     const content=await loadEntryContent(ds);
     if(currentDate===ds){  // 確認還在同一篇
       entries[ds].content=content;
-      if(quill)quill.clipboard.dangerouslyPasteHTML(content);
+      if(quill){
+        // 先拔掉監聽器再貼內容，避免這次程式化貼入被誤判成使用者打字、觸發自動存檔（v40）
+        quill.off('text-change',onInput);
+        quill.clipboard.dangerouslyPasteHTML(content);
+        quill.on('text-change',onInput);
+      }
       overlay.remove();
+      captureSnapshot(ds);  // 內容補齊後才拍快照，避免誤判成內文變動（v40）
     }
   } else {
     showEditorPage();buildEditor(entries[ds]||{});
+    captureSnapshot(ds);  // v40
   }
   renderCal();renderEntryList();
 }
@@ -1048,9 +1087,9 @@ function newEntryOnDate(ds){
   const prevDate=currentDate;
   if(prevDate&&prevDate!==ds){
     flushCurrentToMemory();
-    persistEntry(prevDate);
+    if(isEntryDirty(prevDate))persistEntry(prevDate);  // v40
   }
-  currentDate=ds;calYear=parseInt(ds.slice(0,4));calMonth=parseInt(ds.slice(5,7))-1;showEditorPage();buildEditor(entries[ds]||{});renderCal();renderEntryList();
+  currentDate=ds;calYear=parseInt(ds.slice(0,4));calMonth=parseInt(ds.slice(5,7))-1;showEditorPage();buildEditor(entries[ds]||{});captureSnapshot(ds);renderCal();renderEntryList();
 }
 
 function buildEditor(e){

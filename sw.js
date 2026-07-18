@@ -1,4 +1,4 @@
-const CACHE_NAME = 'memoire-v39'; // 每次升級主程式版本時務必同步改這裡，否則瀏覽器不會抓新版
+const CACHE_NAME = 'memoire-v40'; // 每次升級主程式版本時務必同步改這裡，否則瀏覽器不會抓新版
 const ASSETS = [
   '/Memoire/',
   '/Memoire/index.html',
