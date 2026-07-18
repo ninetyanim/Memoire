@@ -615,7 +615,7 @@ async function callGAS(action, extra={}) {
 }
 
 const TK='memoire_v10_theme';
-const APP_VERSION='v38';  // 主程式版本號，跟 sw.js 的 CACHE_NAME 要一起改
+const APP_VERSION='v39';  // 主程式版本號，跟 sw.js 的 CACHE_NAME 要一起改
 console.log('[Memoire] '+APP_VERSION);
 document.addEventListener('DOMContentLoaded',()=>{
   const el=document.getElementById('app-version-label');
@@ -693,6 +693,58 @@ async function loadEntries(){
   }
 }
 
+// ── Front Matter 讀寫工具（對應 GAS 端 buildFrontMatter/parseFrontMatter，格式須保持一致）──
+const FM_FIELDS=['title','tags','mood','weather','location'];
+
+function buildFrontMatter(meta){
+  const lines=['---'];
+  FM_FIELDS.forEach(f=>{
+    let v=meta[f]||'';
+    if(f==='tags'&&Array.isArray(v))v=v.join(',');
+    lines.push(f+': '+v);
+  });
+  lines.push('---');
+  return lines.join('\n');
+}
+
+function parseFrontMatter(raw){
+  const empty={title:'',tags:[],mood:'',weather:'',location:''};
+  if(!raw||raw.indexOf('---')!==0)return{meta:empty,body:raw||''};
+  const lines=raw.split('\n');
+  if(lines[0].trim()!=='---')return{meta:empty,body:raw};
+  let endIdx=-1;
+  for(let i=1;i<lines.length;i++){if(lines[i].trim()==='---'){endIdx=i;break;}}
+  if(endIdx===-1)return{meta:empty,body:raw};
+  const meta=Object.assign({},empty);
+  for(let i=1;i<endIdx;i++){
+    const line=lines[i];
+    const idx=line.indexOf(':');
+    if(idx===-1)continue;
+    const key=line.slice(0,idx).trim();
+    const val=line.slice(idx+1).trim();
+    if(key==='tags'){meta.tags=val?val.split(',').map(s=>s.trim()).filter(Boolean):[];}
+    else if(FM_FIELDS.indexOf(key)!==-1){meta[key]=val;}
+  }
+  let bodyLines=lines.slice(endIdx+1);
+  if(bodyLines[0]==='')bodyLines=bodyLines.slice(1);
+  return{meta:meta,body:bodyLines.join('\n')};
+}
+
+function hasFrontMatter(raw){
+  if(!raw||raw.indexOf('---')!==0)return false;
+  return parseFrontMatter(raw).body!==raw;
+}
+
+// 把解析出的 meta 套回 entries[ds]，loadEntryContent 和 prefetchRecentEntries 共用
+function applyMetaToEntry(ds,meta){
+  if(!entries[ds])return;
+  entries[ds].title=meta.title;
+  entries[ds].tags=meta.tags;
+  entries[ds].mood=meta.mood;
+  entries[ds].weather=meta.weather;
+  entries[ds].location=meta.location;
+}
+
 // 背景逐筆抓取最近 N 筆，已有 cache 的跳過
 async function prefetchRecentEntries(n){
   const sorted=Object.keys(entries).sort((a,b)=>b.localeCompare(a)).slice(0,n);
@@ -701,8 +753,10 @@ async function prefetchRecentEntries(n){
     if(lsGet(CACHE_PREFIX+ds)!==null)continue;
     try{
       const res=await callGAS('readEntry',{date:ds});
-      const c=res.content||'';
-      lsSet(CACHE_PREFIX+ds,c);
+      const raw=res.content||'';
+      const{meta,body}=parseFrontMatter(raw);
+      if(hasFrontMatter(raw))applyMetaToEntry(ds,meta);
+      lsSet(CACHE_PREFIX+ds,body);
       // 每筆間隔 300ms，避免 GAS 過載
       await new Promise(r=>setTimeout(r,300));
     }catch(e){}
@@ -722,6 +776,7 @@ function flushCurrentToMemory(){
 }
 
 // 2. 把 entries[ds] 寫進 localStorage + GAS（純 async，完全不碰 DOM 或全域 currentDate）
+// .md 是 title/tags/mood/weather/location 的正本：寫入前用 front matter 把這些欄位附加在內文最前面
 async function persistEntry(ds){
   if(!ds||!entries[ds])return;
   const e=entries[ds];
@@ -734,8 +789,16 @@ async function persistEntry(ds){
     lsSet(INDEX_CACHE_KEY,JSON.stringify(entries));
     return;
   }
+  const meta={
+    title:e.title||'',
+    tags:e.tags||[],
+    mood:e.mood||'',
+    weather:e.weather||'',
+    location:e.location||''
+  };
+  const fullContent=buildFrontMatter(meta)+'\n\n'+(e.content||'');
   await Promise.all([
-    callGAS('writeEntry',{date:ds,content:e.content||''}),
+    callGAS('writeEntry',{date:ds,content:fullContent}),
     callGAS('writeIndex',{date:ds,entry:{
       title:e.title||'',
       preview:plain.slice(0,100),
@@ -745,7 +808,7 @@ async function persistEntry(ds){
       location:e.location||''
     }})
   ]);
-  lsSet(CACHE_PREFIX+ds,e.content||'');
+  lsSet(CACHE_PREFIX+ds,e.content||''); // cache 存的是不含 front matter 的乾淨內文
   lsSet(INDEX_CACHE_KEY,JSON.stringify(entries));
 }
 
@@ -755,16 +818,28 @@ async function saveEntries(ds){
 }
 
 // 讀取單筆日記 content（有 cache 直接用，否則從 Drive 抓）
+// 讀到內容後先解析 front matter：剝離後的乾淨內文才回傳/存進 cache，meta 同步覆蓋回 entries[ds]
+// 連 cache 命中的情況也一併檢查，可自動修好舊版程式殘留的髒 cache
 async function loadEntryContent(ds){
   // 先查 localStorage cache
   const cached=lsGet(CACHE_PREFIX+ds);
-  if(cached!==null)return cached;
+  if(cached!==null){
+    if(hasFrontMatter(cached)){
+      const{meta,body}=parseFrontMatter(cached);
+      applyMetaToEntry(ds,meta);
+      lsSet(CACHE_PREFIX+ds,body);
+      return body;
+    }
+    return cached;
+  }
   // cache miss，從 Drive 抓
   try{
     const res=await callGAS('readEntry',{date:ds});
-    const content=res.content||'';
-    lsSet(CACHE_PREFIX+ds, content);
-    return content;
+    const raw=res.content||'';
+    const{meta,body}=parseFrontMatter(raw);
+    if(hasFrontMatter(raw))applyMetaToEntry(ds,meta);
+    lsSet(CACHE_PREFIX+ds,body);
+    return body;
   }catch(e){return '';}
 }
 function loadTheme(){try{const v=lsGet(TK);if(v)applyTheme(v,false);}catch(e){}}
