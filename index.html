@@ -13,7 +13,7 @@
 <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
 <style>
-:root{--bg:#1E1E22;--sidebar-bg:#18181E;--border:#2A2A32;--accent-light:#7878A0;--accent:#505078;--text-title:#E0E0F0;--text-body:#B0B0C0;--text-muted:#707088;--tag:#8080A8;--today-bg:#505078;--card-bg:#23232A;--hover:#25252D;--fs-title:20px;--fs-subtitle:16px;--fs-body:15px;--fs-btn:14px;--fs-small:12px;}
+:root{--bg:#1E1E22;--sidebar-bg:#18181E;--border:#2A2A32;--accent-light:#7878A0;--accent:#505078;--text-title:#E0E0F0;--text-body:#B0B0C0;--text-muted:#707088;--tag:#8080A8;--today-bg:#505078;--card-bg:#23232A;--hover:#25252D;--fs-title:20px;--fs-subtitle:16px;--fs-body:15px;--fs-btn:14px;--fs-small:12px;--warn:#C08838;--warn-bg:rgba(192,136,56,0.12);}
 .theme-warm{--bg:#1E1A14;--sidebar-bg:#19160F;--border:#2C2318;--accent-light:#B8762A;--accent:#9A5E18;--text-title:#E8DEC4;--text-body:#B8A888;--text-muted:#887060;--tag:#B8762A;--today-bg:#9A5E18;--card-bg:#232018;--hover:#272318;}
 .theme-teal{--bg:#181E20;--sidebar-bg:#131A1C;--border:#222E32;--accent-light:#3AA898;--accent:#1E7868;--text-title:#D8E8E4;--text-body:#8AACAC;--text-muted:#5A7878;--tag:#3AA898;--today-bg:#1E7868;--card-bg:#1C2426;--hover:#1F2A2C;}
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -89,6 +89,31 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
 .list-card-del{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:var(--fs-btn);padding:4px 6px;border-radius:4px;display:none;}
 .list-card:hover .list-card-del{display:block;}
 .list-card-del:hover{color:#c05050;}
+.sync-badge{position:absolute;top:8px;right:10px;display:flex;align-items:center;gap:3px;font-size:var(--fs-small);color:var(--warn);cursor:pointer;z-index:1;}
+.sync-badge-dot{width:6px;height:6px;border-radius:50%;background:var(--warn);flex-shrink:0;}
+.sync-banner{background:var(--warn-bg);border:1px solid rgba(192,136,56,0.35);border-radius:8px;padding:10px 12px;display:flex;gap:10px;align-items:flex-start;margin:8px 14px;}
+.sync-banner-icon{font-size:var(--fs-subtitle);line-height:1;flex-shrink:0;margin-top:1px;}
+.sync-banner-body{flex:1;min-width:0;}
+.sync-banner-title{font-size:var(--fs-btn);color:var(--text-title);font-weight:600;margin-bottom:2px;}
+.sync-banner-desc{font-size:var(--fs-small);color:var(--text-body);line-height:1.5;margin-bottom:8px;}
+.sync-banner-actions{display:flex;gap:8px;}
+.sync-btn-primary{background:var(--warn);border:none;color:#1E1E22;font-size:var(--fs-small);padding:4px 12px;border-radius:5px;cursor:pointer;font-family:inherit;font-weight:600;}
+.sync-btn-primary:hover{opacity:0.88;}
+.sync-btn-secondary{background:none;border:1px solid var(--border);color:var(--text-body);font-size:var(--fs-small);padding:4px 12px;border-radius:5px;cursor:pointer;font-family:inherit;}
+.sync-btn-secondary:hover{border-color:var(--accent-light);color:var(--text-title);}
+.leave-confirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;z-index:400;}
+.leave-confirm-box{background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:20px;width:90%;max-width:340px;}
+.leave-confirm-icon{font-size:22px;margin-bottom:8px;}
+.leave-confirm-title{font-size:var(--fs-subtitle);font-weight:600;color:var(--text-title);margin-bottom:8px;line-height:1.4;}
+.leave-confirm-desc{font-size:var(--fs-small);color:var(--text-body);line-height:1.6;margin-bottom:18px;}
+.leave-confirm-actions{display:flex;gap:8px;}
+.leave-confirm-actions button{flex:1;font-family:inherit;font-size:var(--fs-btn);padding:8px 0;border-radius:6px;cursor:pointer;}
+.leave-confirm-btn-stay{background:var(--warn);border:none;color:#1E1E22;font-weight:600;}
+.leave-confirm-btn-stay:hover{opacity:0.88;}
+.leave-confirm-btn-leave{background:none;border:1px solid var(--border);color:var(--text-body);}
+.leave-confirm-btn-leave:hover{border-color:var(--accent-light);color:var(--text-title);}
+.sync-settings-item{display:flex;align-items:center;justify-content:space-between;background:var(--hover);border-radius:6px;padding:8px 10px;margin-bottom:6px;}
+.sync-settings-item-label{font-size:var(--fs-small);color:var(--text-body);}
 .lc-meta-item{font-size:var(--fs-small);color:var(--text-body);}
 .lc-meta-dot{font-size:var(--fs-small);color:var(--text-muted);margin:0 4px;}
 .search-highlight{background:rgba(120,120,160,0.35);border-radius:2px;padding:0 1px;}
@@ -457,6 +482,7 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
       <input id="mobile-search-input" type="text" placeholder="🔍 搜尋日記..." onkeydown="onMobileSearchKey(event)">
       <button id="mobile-search-close" onclick="closeMobileSearch()">×</button>
     </div>
+    <div id="sync-banner-mount"></div>
     <div id="list-page"></div>
     <div id="editor-page">
       <div class="editor-topbar">
@@ -577,6 +603,11 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
             <div class="settings-label-wrap"><div class="settings-label">還原備份</div><div class="settings-desc">index.json 每天自動備份一次，可還原到指定日期</div></div>
             <button class="settings-action-btn" onclick="openBackupModal()">還原備份</button>
           </div>
+          <div class="settings-row" id="sync-pending-row" style="display:none;">
+            <div class="settings-label-wrap"><div class="settings-label">待同步項目</div><div class="settings-desc">尚未成功同步到雲端的日記，可手動重試</div></div>
+            <button class="settings-action-btn" onclick="retryAllSyncPending()">立即重試全部</button>
+          </div>
+          <div id="sync-pending-list" style="padding:0 0 4px;"></div>
 
         </div>
 
@@ -615,7 +646,7 @@ async function callGAS(action, extra={}) {
 }
 
 const TK='memoire_v10_theme';
-const APP_VERSION='v40';  // 主程式版本號，跟 sw.js 的 CACHE_NAME 要一起改
+const APP_VERSION='v41';  // 主程式版本號，跟 sw.js 的 CACHE_NAME 要一起改
 console.log('[Memoire] '+APP_VERSION);
 document.addEventListener('DOMContentLoaded',()=>{
   const el=document.getElementById('app-version-label');
@@ -806,8 +837,142 @@ function flushCurrentToMemory(){
   if(quill)entries[currentDate].content=quill.root.innerHTML;
 }
 
+// ── 同步失敗追蹤（v41：存檔時序改造，md 優先序）──
+// mdSyncState：ds -> 'retrying' | 'failed'（存在即代表尚未成功同步，不存在視為 ok，只存於記憶體）
+// syncPending：localStorage 持久化清單，跨頁面/重新整理後仍能顯示 banner 與卡片標記
+const SYNC_PENDING_KEY='memoire_v10_sync_pending';
+let mdSyncState={};
+
+function getSyncPending(){try{return JSON.parse(lsGet(SYNC_PENDING_KEY)||'[]');}catch(e){return [];}}
+function setSyncPending(list){lsSet(SYNC_PENDING_KEY,JSON.stringify(list));}
+function addSyncPending(date,type){
+  const list=getSyncPending();
+  if(!list.some(i=>i.date===date&&i.type===type)){
+    list.push({date,type,failedAt:Date.now()});
+    setSyncPending(list);
+  }
+  renderSyncUI();
+}
+function removeSyncPending(date,type){
+  const list=getSyncPending().filter(i=>!(i.date===date&&i.type===type));
+  setSyncPending(list);
+  renderSyncUI();
+}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+
+// 統一觸發三處會顯示同步狀態的地方：banner、卡片小標記、設定頁清單
+function renderSyncUI(){
+  renderSyncBanner();
+  if(document.getElementById('list-page')&&document.getElementById('list-page').style.display!=='none')renderListPage();
+  renderSyncPendingSettings();
+}
+
+function renderSyncBanner(){
+  const mount=document.getElementById('sync-banner-mount');
+  if(!mount)return;
+  const list=getSyncPending();
+  if(!list.length){mount.innerHTML='';return;}
+  // 只顯示最近一筆失敗的，避免同時堆疊多條 banner；其餘篇目由卡片小標記與設定頁清單涵蓋
+  const item=list[list.length-1];
+  const md=item.date.slice(5,7)+'/'+item.date.slice(8,10);
+  mount.innerHTML=`<div class="sync-banner">
+    <div class="sync-banner-icon">⚠️</div>
+    <div class="sync-banner-body">
+      <div class="sync-banner-title">${md} 的日記尚未同步到雲端</div>
+      <div class="sync-banner-desc">目前只存在這台裝置，請檢查網路後重試。</div>
+      <div class="sync-banner-actions">
+        <button class="sync-btn-primary" onclick="retrySync('${item.date}')">立即重試</button>
+        <button class="sync-btn-secondary" onclick="dismissSyncBanner()">知道了，稍後處理</button>
+      </div>
+    </div>
+  </div>`;
+}
+function dismissSyncBanner(){
+  const mount=document.getElementById('sync-banner-mount');
+  if(mount)mount.innerHTML='';
+}
+
+function renderSyncPendingSettings(){
+  const row=document.getElementById('sync-pending-row');
+  const listEl=document.getElementById('sync-pending-list');
+  if(!row||!listEl)return;
+  const list=getSyncPending();
+  if(!list.length){row.style.display='none';listEl.innerHTML='';return;}
+  row.style.display='flex';
+  listEl.innerHTML=list.map(i=>`
+    <div class="sync-settings-item">
+      <span class="sync-settings-item-label">${i.date}（${i.type==='md'?'內容':'索引'}）</span>
+      <button class="settings-action-btn" onclick="retrySync('${i.date}')">重試</button>
+    </div>`).join('');
+}
+
+// 手動重試：確保內容已載入記憶體後，重新跑一次完整 persistEntry（md → index）
+async function retrySync(ds){
+  if(!entries[ds])return;
+  if(!entries[ds].content){
+    entries[ds].content=await loadEntryContent(ds);
+  }
+  await persistEntry(ds);
+}
+async function retryAllSyncPending(){
+  const dates=[...new Set(getSyncPending().map(i=>i.date))];
+  for(const ds of dates){await retrySync(ds);}
+}
+
+// 離開頁面前的確認視窗：只在該篇目前處於「重試中」或「已失敗」狀態時觸發
+let _leaveConfirmResolver=null;
+function confirmLeaveIfSyncFailed(ds){
+  if(!ds)return Promise.resolve(true);
+  const st=mdSyncState[ds];
+  if(st!=='retrying'&&st!=='failed')return Promise.resolve(true);
+  const overlay=document.createElement('div');
+  overlay.className='leave-confirm-overlay';
+  overlay.id='leave-confirm-overlay';
+  overlay.innerHTML=`<div class="leave-confirm-box">
+    <div class="leave-confirm-icon">⚠️</div>
+    <div class="leave-confirm-title">這篇日記還沒有成功同步到雲端</div>
+    <div class="leave-confirm-desc">目前內容只存在這台裝置。如果現在離開，系統會持續在背景重試，你也可以之後在設定頁手動重試。</div>
+    <div class="leave-confirm-actions">
+      <button class="leave-confirm-btn-stay" onclick="resolveLeaveConfirm(false)">留下繼續處理</button>
+      <button class="leave-confirm-btn-leave" onclick="resolveLeaveConfirm(true)">仍要離開</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+  return new Promise(resolve=>{_leaveConfirmResolver=resolve;});
+}
+function resolveLeaveConfirm(leave){
+  const el=document.getElementById('leave-confirm-overlay');
+  if(el)el.remove();
+  if(_leaveConfirmResolver){_leaveConfirmResolver(leave);_leaveConfirmResolver=null;}
+}
+
+// md 寫入＋重試（固定間隔 3 秒，最多重試 2 次）；成功/最終失敗都會同步更新 mdSyncState 與 syncPending
+async function persistMdWithRetry(ds,fullContent){
+  for(let attempt=0;attempt<=2;attempt++){
+    if(attempt>0){
+      mdSyncState[ds]='retrying';
+      renderSyncUI();
+      await sleep(3000);
+    }
+    let ok=false;
+    try{
+      const res=await callGAS('writeEntry',{date:ds,content:fullContent});
+      ok=!!(res&&res.ok);
+    }catch(e){ok=false;}
+    if(ok){
+      delete mdSyncState[ds];
+      removeSyncPending(ds,'md');
+      return true;
+    }
+  }
+  mdSyncState[ds]='failed';
+  addSyncPending(ds,'md');
+  return false;
+}
+
 // 2. 把 entries[ds] 寫進 localStorage + GAS（純 async，完全不碰 DOM 或全域 currentDate）
 // .md 是 title/tags/mood/weather/location 的正本：寫入前用 front matter 把這些欄位附加在內文最前面
+// v41：md 優先序——md 寫入（含重試）成功後才寫 index，取代原本的 Promise.all 平行送出
 async function persistEntry(ds){
   if(!ds||!entries[ds])return;
   const e=entries[ds];
@@ -828,18 +993,21 @@ async function persistEntry(ds){
     location:e.location||''
   };
   const fullContent=buildFrontMatter(meta)+'\n\n'+(e.content||'');
-  await Promise.all([
-    callGAS('writeEntry',{date:ds,content:fullContent}),
-    callGAS('writeIndex',{date:ds,entry:{
-      title:e.title||'',
-      preview:plain.slice(0,100),
-      tags:e.tags||[],
-      mood:e.mood||'',
-      weather:e.weather||'',
-      location:e.location||''
-    }})
-  ]);
-  lsSet(CACHE_PREFIX+ds,e.content||''); // cache 存的是不含 front matter 的乾淨內文
+  const mdOk=await persistMdWithRetry(ds,fullContent);
+  // 內容先快取進 localStorage，不論 md 是否成功同步到雲端，至少本機不會丟
+  lsSet(CACHE_PREFIX+ds,e.content||'');
+  if(!mdOk){
+    // md 沒同步成功：不更新 dirty 快照基準，讓下次離開這篇時仍判定為 dirty、有機會再次觸發存檔
+    return;
+  }
+  callGAS('writeIndex',{date:ds,entry:{
+    title:e.title||'',
+    preview:plain.slice(0,100),
+    tags:e.tags||[],
+    mood:e.mood||'',
+    weather:e.weather||'',
+    location:e.location||''
+  }});
   lsSet(INDEX_CACHE_KEY,JSON.stringify(entries));
   if(currentDate===ds){entrySnapshotDate=ds;entrySnapshot=fieldsSnapshot(ds);} // 只在還停留在同一篇時更新基準，離開後背景存的不動全域快照
 }
@@ -982,6 +1150,9 @@ function renderListPage(){
       if(e.mood)metaParts.push(`<span class="lc-meta-item">${e.mood}</span>`);
       const metaHtml=metaParts.length?metaParts.join('<span class="lc-meta-dot">·</span>')+( tags?'<span class="lc-meta-dot">·</span>'+tags:''):'';
       const bottomRow=metaHtml||(tags?tags:'');
+      const syncBadge=getSyncPending().some(i=>i.date===ds&&i.type==='md')
+        ?`<span class="sync-badge" title="點擊查看同步狀態" onclick="event.stopPropagation();retrySync('${ds}')"><span class="sync-badge-dot"></span>未同步</span>`
+        :'';
       html+=`<div class="list-card" onclick="openEntry('${ds}')">
         <div class="list-card-left">
           <div class="list-card-dow">${fmtDow(ds)}</div>
@@ -993,6 +1164,7 @@ function renderListPage(){
           ${plain?`<div class="list-card-preview">${plain.slice(0,120)}</div>`:(hasTitle?'':`<div class="list-card-preview" style="opacity:0.4;">（無內容）</div>`)}
           ${bottomRow?`<div class="list-card-tags">${bottomRow}</div>`:''}
         </div>
+        ${syncBadge}
         <button class="list-card-del" onclick="event.stopPropagation();deleteEntry('${ds}')">✕</button>
       </div>`;
     });
@@ -1028,6 +1200,8 @@ async function goBack(){
   clearTimeout(autoSaveTimer);
   if(window._geoFallbackTimer){clearTimeout(window._geoFallbackTimer);window._geoFallbackTimer=null;}
   if(currentDate){
+    const dsCheck=currentDate;
+    if(!(await confirmLeaveIfSyncFailed(dsCheck)))return; // 使用者選擇留下繼續處理
     flushCurrentToMemory();
     const ds=currentDate;
     const e=entries[ds];
@@ -1049,6 +1223,7 @@ async function openEntry(ds){
   clearTimeout(autoSaveTimer);
   const prevDate=currentDate;
   if(prevDate&&prevDate!==ds){
+    if(!(await confirmLeaveIfSyncFailed(prevDate)))return; // 使用者選擇留下繼續處理
     flushCurrentToMemory();           // 同步：DOM → memory
     if(isEntryDirty(prevDate))persistEntry(prevDate);  // 只有真的變動過才背景存檔（v40）
   }
@@ -1082,10 +1257,11 @@ async function openEntry(ds){
   renderCal();renderEntryList();
 }
 function newEntry(){newEntryOnDate(todayStr());}
-function newEntryOnDate(ds){
+async function newEntryOnDate(ds){
   clearTimeout(autoSaveTimer);
   const prevDate=currentDate;
   if(prevDate&&prevDate!==ds){
+    if(!(await confirmLeaveIfSyncFailed(prevDate)))return; // 使用者選擇留下繼續處理
     flushCurrentToMemory();
     if(isEntryDirty(prevDate))persistEntry(prevDate);  // v40
   }
@@ -2482,7 +2658,10 @@ function toggleMobileToolbar(){
   tb.classList.toggle('toolbar-open');
 }
 
-async function init(){loadTheme();loadSettings();renderCal();showListPage();await loadEntries();renderCal();renderEntryList();renderListPage();}
+async function init(){loadTheme();loadSettings();restoreSyncStateFromStorage();renderCal();showListPage();await loadEntries();renderCal();renderEntryList();renderListPage();renderSyncUI();}
+function restoreSyncStateFromStorage(){
+  getSyncPending().forEach(i=>{if(i.type==='md')mdSyncState[i.date]='failed';});
+}
 init();
 </script>
 </body>
