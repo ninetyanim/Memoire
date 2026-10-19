@@ -112,6 +112,26 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
 .leave-confirm-btn-stay:hover{opacity:0.88;}
 .leave-confirm-btn-leave{background:none;border:1px solid var(--border);color:var(--text-body);}
 .leave-confirm-btn-leave:hover{border-color:var(--accent-light);color:var(--text-title);}
+/* ── 鎖定頁（v42：輸入暗號）── */
+#lock-screen{position:fixed;inset:0;z-index:500;background:var(--bg);display:none;align-items:center;justify-content:center;padding:20px;}
+#lock-screen.visible{display:flex;}
+.lock-box{width:100%;max-width:300px;display:flex;flex-direction:column;align-items:center;gap:12px;}
+.lock-icon{color:var(--accent-light);display:flex;}
+.lock-title{font-size:var(--fs-title);font-weight:600;color:var(--text-title);}
+.lock-desc{font-size:var(--fs-small);color:var(--text-muted);text-align:center;line-height:1.5;}
+.lock-desc.expired{color:var(--warn);}
+.lock-field{width:100%;display:flex;align-items:center;background:var(--card-bg);border:1px solid var(--border);border-radius:6px;padding:0 4px 0 12px;transition:border-color 0.15s;}
+.lock-field:focus-within{border-color:var(--accent-light);}
+.lock-field.error{border-color:var(--warn);}
+.lock-input{flex:1;min-width:0;background:transparent;border:none;outline:none;color:var(--text-title);font-size:var(--fs-body);font-family:inherit;padding:9px 0;}
+.lock-input::placeholder{color:var(--text-muted);}
+.lock-eye{background:none;border:none;cursor:pointer;color:var(--text-muted);padding:6px 8px;display:flex;align-items:center;}
+.lock-eye:hover{color:var(--accent-light);}
+.lock-error{width:100%;font-size:var(--fs-small);color:var(--warn);min-height:1em;display:none;}
+.lock-error.visible{display:block;}
+.lock-submit{width:100%;background:var(--accent);border:none;border-radius:6px;padding:9px 0;font-size:var(--fs-btn);color:var(--text-title);cursor:pointer;font-family:inherit;}
+.lock-submit:hover{background:var(--accent-light);}
+.lock-submit:disabled{opacity:0.7;cursor:default;background:var(--accent);}
 .sync-settings-item{display:flex;align-items:center;justify-content:space-between;background:var(--hover);border-radius:6px;padding:8px 10px;margin-bottom:6px;}
 .sync-settings-item-label{font-size:var(--fs-small);color:var(--text-body);}
 .lc-meta-item{font-size:var(--fs-small);color:var(--text-body);}
@@ -426,6 +446,23 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
 }
 </style>
 
+<!-- 鎖定頁（v42）：沒有暗號時蓋住整個 App，不顯示任何日記（包含本機快取） -->
+<div id="lock-screen">
+  <form class="lock-box" id="lock-form" onsubmit="event.preventDefault();submitUnlock();" autocomplete="on">
+    <div class="lock-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
+    <div class="lock-title">Memoire</div>
+    <div class="lock-desc" id="lock-desc">輸入暗號以連線日記</div>
+    <!-- 隱藏帳號欄：讓瀏覽器／密碼管理器能記住並自動填入暗號 -->
+    <input type="text" name="username" value="memoire" autocomplete="username" style="display:none;" aria-hidden="true" tabindex="-1">
+    <div class="lock-field" id="lock-field">
+      <input class="lock-input" id="lock-input" type="password" name="password" placeholder="暗號" autocomplete="current-password" oninput="clearLockError()">
+      <button type="button" class="lock-eye" id="lock-eye" onclick="toggleLockEye()" aria-label="顯示暗號"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button>
+    </div>
+    <div class="lock-error" id="lock-error"></div>
+    <button type="submit" class="lock-submit" id="lock-submit">解鎖</button>
+  </form>
+</div>
+
 <div id="sidebar-overlay" onclick="closeSidebar()"></div>
 <div id="app">
   <div id="sidebar">
@@ -608,6 +645,10 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
             <button class="settings-action-btn" onclick="retryAllSyncPending()">立即重試全部</button>
           </div>
           <div id="sync-pending-list" style="padding:0 0 4px;"></div>
+          <div class="settings-row">
+            <div class="settings-label-wrap"><div class="settings-label">登出這台裝置</div><div class="settings-desc">清除暗號與本機快取，下次開啟需重新輸入</div></div>
+            <button class="settings-action-btn" onclick="logoutDevice()">登出</button>
+          </div>
 
         </div>
 
@@ -624,14 +665,18 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
 
 <script>
 
-// ── GAS 設定（填入你的值）──
+// ── GAS 設定 ──
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbz3xclRrSiG09WfRAxONhQCJWo9I18OgIQJtpMfOhqA-RekuEswI4d9-IZNQETWzEIAXw/exec';
-const GAS_SECRET = 'cUoqAiTv7qhaX68WXiYL';
+// v42：暗號不再寫死在程式碼裡（網頁原始碼是公開的），改由使用者在每台裝置輸入一次，存在該裝置的 localStorage
+const SECRET_KEY = 'memoire_v10_secret';
+function getSecret(){try{return localStorage.getItem(SECRET_KEY)||'';}catch(e){return '';}}
 
-async function callGAS(action, extra={}) {
+// 實際送出請求（secret 由呼叫端指定，解鎖頁驗證時會帶入「尚未存檔」的候選暗號）
+async function rawCallGAS(secret, action, extra={}) {
+  const s = encodeURIComponent(secret);
   // writeEntry 內容可能很長，改走 text/plain POST（簡單請求，不觸發 CORS preflight）
   if (action === 'writeEntry') {
-    const url = `${GAS_URL}?secret=${GAS_SECRET}`;
+    const url = `${GAS_URL}?secret=${s}`;
     const r = await fetch(url, {
       method: 'POST',
       headers: {'Content-Type': 'text/plain;charset=utf-8'},
@@ -640,13 +685,22 @@ async function callGAS(action, extra={}) {
     return r.json();
   }
   const data = encodeURIComponent(JSON.stringify(extra));
-  const url = `${GAS_URL}?secret=${GAS_SECRET}&action=${action}&data=${data}`;
+  const url = `${GAS_URL}?secret=${s}&action=${action}&data=${data}`;
   const r = await fetch(url);
   return r.json();
 }
 
+async function callGAS(action, extra={}) {
+  const secret = getSecret();
+  if (!secret) { handleUnauthorized(); return {error:'unauthorized'}; }
+  const res = await rawCallGAS(secret, action, extra);
+  // 暗號錯誤或已被更換：跳回鎖定頁（回傳值照舊交給呼叫端，存檔流程會照 v41 機制進入待同步，內容不會遺失）
+  if (res && res.error === 'unauthorized') handleUnauthorized();
+  return res;
+}
+
 const TK='memoire_v10_theme';
-const APP_VERSION='v41';  // 主程式版本號，跟 sw.js 的 CACHE_NAME 要一起改
+const APP_VERSION='v42';  // 主程式版本號，跟 sw.js 的 CACHE_NAME 要一起改
 console.log('[Memoire] '+APP_VERSION);
 document.addEventListener('DOMContentLoaded',()=>{
   const el=document.getElementById('app-version-label');
@@ -687,7 +741,8 @@ function showLoadingState(msg){
   if(page)page.innerHTML=`<div class="list-empty"><div style="font-size:28px;opacity:0.3;">⏳</div><div style="font-size:var(--fs-btn);color:var(--text-muted);">${msg}</div></div>`;
 }
 
-async function loadEntries(){
+// prefetched：解鎖頁驗證暗號時已經拿到的 readIndex 結果，直接沿用，不重複呼叫 GAS（v42）
+async function loadEntries(prefetched){
   // 先用 localStorage cache 立刻渲染
   const cached=lsGet(INDEX_CACHE_KEY);
   if(cached){
@@ -704,9 +759,9 @@ async function loadEntries(){
   }
   // 背景從 Drive 拉最新資料
   try{
-    const res=await callGAS('readIndex');
+    const res=prefetched||await callGAS('readIndex');
     if(res.error){
-      if(!cached)showLoadingState('連線失敗，請重新整理');
+      if(!cached)showLoadingState(res.error==='unauthorized'?'請先輸入暗號':'連線失敗，請重新整理');
       return;
     }
     const raw=res.data||{};
@@ -2658,7 +2713,113 @@ function toggleMobileToolbar(){
   tb.classList.toggle('toolbar-open');
 }
 
-async function init(){loadTheme();loadSettings();restoreSyncStateFromStorage();renderCal();showListPage();await loadEntries();renderCal();renderEntryList();renderListPage();renderSyncUI();}
+// ── 鎖定頁／暗號（v42）──
+let appStarted=false;   // App 是否已經完成過一次啟動（決定解鎖後要「啟動」還是只「重新載入資料」）
+let unlockBusy=false;
+
+function showLockScreen(expired){
+  const ls=document.getElementById('lock-screen');
+  if(!ls)return;
+  const desc=document.getElementById('lock-desc');
+  if(desc){
+    desc.textContent=expired?'暗號已失效，請重新輸入':'輸入暗號以連線日記';
+    desc.classList.toggle('expired',!!expired);
+  }
+  ls.classList.add('visible');
+  const inp=document.getElementById('lock-input');
+  if(inp)setTimeout(()=>inp.focus(),50);
+}
+function hideLockScreen(){
+  const ls=document.getElementById('lock-screen');
+  if(ls)ls.classList.remove('visible');
+  const inp=document.getElementById('lock-input');
+  if(inp){inp.value='';inp.type='password';}
+  clearLockError();
+}
+function setLockError(msg){
+  const el=document.getElementById('lock-error');
+  const field=document.getElementById('lock-field');
+  if(el){el.textContent=msg;el.classList.add('visible');}
+  if(field)field.classList.add('error');
+}
+function clearLockError(){
+  const el=document.getElementById('lock-error');
+  const field=document.getElementById('lock-field');
+  if(el){el.textContent='';el.classList.remove('visible');}
+  if(field)field.classList.remove('error');
+}
+function toggleLockEye(){
+  const inp=document.getElementById('lock-input');
+  if(!inp)return;
+  inp.type=inp.type==='password'?'text':'password';
+  inp.focus();
+}
+
+// 任何 GAS 請求回傳 unauthorized（或根本沒有暗號）時呼叫：清掉這台裝置存的暗號，跳回鎖定頁
+// 可重複呼叫（例如存檔重試期間連續失敗），不會疊出多個畫面
+function handleUnauthorized(){
+  const had=!!getSecret();
+  try{localStorage.removeItem(SECRET_KEY);}catch(e){}
+  showLockScreen(had||appStarted);
+}
+
+async function submitUnlock(){
+  if(unlockBusy)return;
+  const inp=document.getElementById('lock-input');
+  const btn=document.getElementById('lock-submit');
+  const candidate=(inp?.value||'').trim();
+  if(!candidate){setLockError('請輸入暗號');return;}
+  unlockBusy=true;
+  if(btn){btn.disabled=true;btn.textContent='驗證中…';}
+  let res=null;
+  try{
+    // 用 readIndex 驗證：成功的話順便就拿到日記清單，交給 loadEntries 沿用
+    res=await rawCallGAS(candidate,'readIndex');
+  }catch(e){res=null;}
+  unlockBusy=false;
+  if(btn){btn.disabled=false;btn.textContent='解鎖';}
+  if(!res){setLockError('無法連線，請檢查網路後再試');return;}
+  if(res.error==='unauthorized'){setLockError('暗號不正確，請再試一次');if(inp)inp.select();return;}
+  if(res.error){setLockError('連線失敗，請稍後再試');return;}
+  try{localStorage.setItem(SECRET_KEY,candidate);}catch(e){setLockError('這個瀏覽器無法儲存暗號');return;}
+  hideLockScreen();
+  if(!appStarted){await startApp(res);}
+  else{await loadEntries(res);renderSyncUI();}  // 使用途中暗號失效後重新解鎖：只重新載入資料，正在編輯的內容保留在記憶體
+}
+
+// 登出這台裝置：清除暗號與本機日記快取（主題、字型等偏好設定保留）
+function logoutDevice(){
+  const pending=getSyncPending().length;
+  const inFlight=Object.keys(mdSyncState).length;
+  if(pending||inFlight){
+    alert(`還有 ${Math.max(pending,inFlight)} 篇日記尚未同步到雲端，登出會讓這些內容遺失。\n\n請先在「待同步項目」按「立即重試全部」，同步完成後再登出。`);
+    return;
+  }
+  if(!confirm('確定要登出這台裝置？\n\n會清除這台裝置上的暗號與日記快取，雲端資料不受影響。下次開啟需要重新輸入暗號。'))return;
+  try{
+    const keys=[];
+    for(let i=0;i<localStorage.length;i++){
+      const k=localStorage.key(i);
+      if(k===SECRET_KEY||k===INDEX_CACHE_KEY||k===SYNC_PENDING_KEY||(k&&k.indexOf(CACHE_PREFIX)===0))keys.push(k);
+    }
+    keys.forEach(k=>localStorage.removeItem(k));
+  }catch(e){}
+  location.reload();
+}
+
+async function startApp(prefetched){
+  appStarted=true;
+  restoreSyncStateFromStorage();renderCal();showListPage();
+  await loadEntries(prefetched);
+  renderCal();renderEntryList();renderListPage();renderSyncUI();
+}
+
+async function init(){
+  loadTheme();loadSettings();
+  // 沒有暗號：只顯示鎖定頁，不渲染任何日記（包含本機快取）
+  if(!getSecret()){showLockScreen(false);return;}
+  await startApp();
+}
 function restoreSyncStateFromStorage(){
   getSyncPending().forEach(i=>{if(i.type==='md')mdSyncState[i.date]='failed';});
 }
