@@ -606,7 +606,7 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
           <div class="settings-row">
             <div class="settings-label-wrap">
               <div class="settings-label">寫作引導</div>
-              <div class="settings-desc">編輯器底部「給我一個問題」按鈕</div>
+              <div class="settings-desc">編輯器底部「✨ 引導」按鈕</div>
             </div>
             <label class="toggle-switch">
               <input type="checkbox" id="toggle-writing" checked onchange="saveSettings()">
@@ -616,7 +616,7 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
           <div class="settings-row">
             <div class="settings-label-wrap">
               <div class="settings-label">情緒分析</div>
-              <div class="settings-desc">「儲存並分析」按鈕與心情標籤</div>
+              <div class="settings-desc">「✨ 分析」按鈕與心情標籤</div>
             </div>
             <label class="toggle-switch">
               <input type="checkbox" id="toggle-mood" checked onchange="saveSettings()">
@@ -674,8 +674,8 @@ function getSecret(){try{return localStorage.getItem(SECRET_KEY)||'';}catch(e){r
 // 實際送出請求（secret 由呼叫端指定，解鎖頁驗證時會帶入「尚未存檔」的候選暗號）
 async function rawCallGAS(secret, action, extra={}) {
   const s = encodeURIComponent(secret);
-  // writeEntry 內容可能很長，改走 text/plain POST（簡單請求，不觸發 CORS preflight）
-  if (action === 'writeEntry') {
+  // writeEntry / gemini 內容可能很長，走 text/plain POST（簡單請求，不觸發 CORS preflight，也沒有網址長度限制；v43 加入 gemini）
+  if (action === 'writeEntry' || action === 'gemini') {
     const url = `${GAS_URL}?secret=${s}`;
     const r = await fetch(url, {
       method: 'POST',
@@ -700,7 +700,7 @@ async function callGAS(action, extra={}) {
 }
 
 const TK='memoire_v10_theme';
-const APP_VERSION='v42';  // 主程式版本號，跟 sw.js 的 CACHE_NAME 要一起改
+const APP_VERSION='v43';  // 主程式版本號，跟 sw.js 的 CACHE_NAME 要一起改
 console.log('[Memoire] '+APP_VERSION);
 document.addEventListener('DOMContentLoaded',()=>{
   const el=document.getElementById('app-version-label');
@@ -2005,60 +2005,75 @@ async function saveAndAnalyze(){
   if(btn){btn.disabled=false;btn.textContent='✨ 分析';}
 }
 
+// AI 錯誤訊息對照（v43：GAS 回傳明確的 error 種類，不再靜默失敗）
+function aiErrorMessage(data){
+  const err=data&&data.error;
+  if(!data||data.__network)return 'AI 暫時無法連線，請稍後再試';
+  if(data.quota||err==='quota')return '今日 AI 配額已用盡，明天再試';
+  if(err==='model_unavailable')return 'AI 模型已停用，需更新 GEMINI_MODEL 設定';
+  if(err==='truncated')return 'AI 回應被截斷，請再試一次';
+  if(err==='blocked')return 'AI 無法回應這段內容';
+  if(err==='empty')return 'AI 沒有回應，請再試一次';
+  if(err==='unauthorized')return '暗號已失效，請重新輸入';
+  if(err==='api_error')return 'AI 暫時無法連線（錯誤 '+(data.code||'')+'）';
+  if(err)return 'AI 發生錯誤：'+err;
+  return '';
+}
+
 async function analyzeMood(){
-  if(!currentDate||!entries[currentDate])return;
-  const content=getPlain(entries[currentDate].content||''),title=entries[currentDate].title||'';
+  // 開始時鎖定日期：分析期間若切換到別篇，結果仍寫回原本這篇，不會寫錯篇（v43）
+  const ds=currentDate;
+  if(!ds||!entries[ds])return;
+  const content=getPlain(entries[ds].content||''),title=entries[ds].title||'';
   if(!content&&!title)return;
+  const showMood=(text,ok)=>{
+    if(currentDate!==ds)return;  // 已切到別篇就不動畫面
+    const mv=document.getElementById('mood-val');
+    if(!mv)return;
+    mv.textContent=text;
+    mv.style.opacity=ok?'1':'0.6';
+    mv.classList.toggle('has-val',!!ok);
+  };
+  let data;
   try{
     const system='你是日記情緒分析助手，使用繁體中文。只輸出 JSON，格式：{"mood":"emoji+2-4字","tags":["標籤1","標籤2"]}，不要其他文字。';
     const prompt=`標題：${title}\n內容：${content.slice(0,500)}`;
-    console.log('[analyzeMood] prompt 長度:',prompt.length,'| 預估 GET URL 長度:',encodeURIComponent(JSON.stringify({system,prompt})).length);
-    const data=await callGAS('gemini',{system,prompt});
-    console.log('[analyzeMood] GAS 回傳:',data);
-    if(data.quota){
-      const mv=document.getElementById('mood-val');
-      if(mv){mv.textContent='今日配額已用盡';mv.style.opacity='0.5';}
-      return;
-    }
-    const raw=data.text||'';
-    const match=raw.match(/\{[\s\S]*\}/);
-    if(!match){
-      console.error('[analyzeMood] 回傳內容找不到 JSON，原始 raw:',JSON.stringify(raw));
-      throw new Error('no JSON');
-    }
-    let parsed;
-    try{
-      parsed=JSON.parse(match[0]);
-    }catch(parseErr){
-      console.error('[analyzeMood] JSON.parse 失敗，擷取到的字串:',match[0],'| 錯誤:',parseErr);
-      throw parseErr;
-    }
-    console.log('[analyzeMood] 解析後 parsed:',parsed);
-    if(parsed.mood&&entries[currentDate]){
-      entries[currentDate].mood=parsed.mood;
-      // mood 只更新 index，不需重寫 .md
-      await callGAS('writeIndex',{date:currentDate,entry:{
-        title:entries[currentDate].title||'',
-        preview:getPlain(entries[currentDate].content||'').slice(0,100),
-        tags:entries[currentDate].tags||[],
-        mood:parsed.mood,
-        weather:entries[currentDate].weather||'',
-        location:entries[currentDate].location||''
-      }});
-      const mv=document.getElementById('mood-val');
-      if(mv){mv.textContent=parsed.mood;mv.style.opacity='1';mv.classList.add('has-val');}
-    }
-    if(parsed.tags&&parsed.tags.length&&entries[currentDate]){
-      const ex=entries[currentDate].tags||[];
-      const newSuggested=parsed.tags.filter(t=>!ex.includes(t)).slice(0,3);
-      if(newSuggested.length){
-        pendingSuggestedTags[currentDate]=newSuggested;
-        renderTagsRow(entries[currentDate].tags, newSuggested);
-        renderAISummaryTags(entries[currentDate].tags||[], newSuggested);
-      }
-    }
+    data=await callGAS('gemini',{system,prompt,json:true});
   }catch(e){
-    console.error('[analyzeMood] 整體失敗:',e);
+    console.error('[analyzeMood] 連線失敗:',e);
+    data={__network:true};
+  }
+  const errMsg=aiErrorMessage(data);
+  if(errMsg){console.error('[analyzeMood]',errMsg,data);showMood(errMsg,false);return;}
+  // JSON 模式下回傳就是 JSON；保留 regex 擷取當作備援（例如換回不支援 JSON 模式的模型時）
+  let parsed=null;
+  const raw=(data&&data.text)||'';
+  try{parsed=JSON.parse(raw);}catch(e){
+    const match=raw.match(/\{[\s\S]*\}/);
+    if(match){try{parsed=JSON.parse(match[0]);}catch(e2){}}
+  }
+  if(!parsed){console.error('[analyzeMood] 回傳內容無法解析成 JSON:',raw);showMood('AI 回應格式異常，請再試一次',false);return;}
+  if(!entries[ds])return;  // 分析期間這篇被刪除
+  if(parsed.mood){
+    entries[ds].mood=parsed.mood;
+    showMood(parsed.mood,true);
+    // mood 目前只更新 index（寫回 .md 留待 v46 方案 A 收口處理；離開這篇時 isDirty 會判定變動並補寫 .md）
+    callGAS('writeIndex',{date:ds,entry:{
+      title:entries[ds].title||'',
+      preview:getPlain(entries[ds].content||'').slice(0,100),
+      tags:entries[ds].tags||[],
+      mood:parsed.mood,
+      weather:entries[ds].weather||'',
+      location:entries[ds].location||''
+    }});
+  }
+  if(Array.isArray(parsed.tags)&&parsed.tags.length){
+    const ex=entries[ds].tags||[];
+    const newSuggested=parsed.tags.filter(t=>typeof t==='string'&&t.trim()&&!ex.includes(t)).slice(0,3);
+    if(newSuggested.length){
+      pendingSuggestedTags[ds]=newSuggested;
+      if(currentDate===ds)renderTagsRow(entries[ds].tags||[], newSuggested);
+    }
   }
 }
 
@@ -2182,8 +2197,13 @@ async function askAI(){
     const system='你是日記寫作引導助手，使用繁體中文。根據日記內容提出一個溫和、具體、能幫助深入反思的問題。只輸出問題本身。';
     const prompt=content?`我的日記：「${content.slice(0,400)}」`:'我剛開始寫今天的日記，幫我引導。';
     const data=await callGAS('gemini',{system,prompt});
-    if(data.quota){
-      if(bar)bar.innerHTML=`<div class="ai-question" style="color:var(--text-muted);">💤 今日 AI 配額已用盡，明天再試。</div>`;
+    const errMsg=aiErrorMessage(data);  // v43：顯示具體失敗原因
+    if(errMsg){
+      console.error('[askAI]',errMsg,data);
+      if(bar){
+        bar.innerHTML=`<div class="ai-question" style="color:var(--text-muted);"><span style="flex:1;" id="ai-q-text"></span><span class="ai-q-close" onclick="document.getElementById('ai-bar').innerHTML=''">×</span></div>`;
+        const el=document.getElementById('ai-q-text');if(el)el.textContent=errMsg;
+      }
       return;
     }
     const q=data.text?.trim()||'';
