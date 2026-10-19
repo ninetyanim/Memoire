@@ -112,6 +112,11 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
 .leave-confirm-btn-stay:hover{opacity:0.88;}
 .leave-confirm-btn-leave{background:none;border:1px solid var(--border);color:var(--text-body);}
 .leave-confirm-btn-leave:hover{border-color:var(--accent-light);color:var(--text-title);}
+/* ── 其他裝置修改提示（v44）── */
+.editor-toast-wrap{display:flex;justify-content:center;padding:8px 14px 0;flex-shrink:0;}
+.editor-toast{display:inline-flex;align-items:center;gap:6px;background:var(--card-bg);border:1px solid var(--accent);border-radius:16px;padding:5px 14px;font-size:var(--fs-small);color:var(--text-body);animation:fadeIn 0.25s;}
+.editor-toast svg{color:var(--accent-light);flex-shrink:0;}
+#conflict-banner-mount .sync-banner{flex-shrink:0;}
 /* ── 鎖定頁（v42：輸入暗號）── */
 #lock-screen{position:fixed;inset:0;z-index:500;background:var(--bg);display:none;align-items:center;justify-content:center;padding:20px;}
 #lock-screen.visible{display:flex;}
@@ -531,6 +536,8 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
         <button class="nav-entry-btn" id="next-entry-btn" onclick="navEntry(1)" title="下一篇">下一篇 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg></button>
         <button class="del-btn" onclick="deleteCurrentEntry()">刪除</button>
       </div>
+      <div id="conflict-banner-mount"></div>
+      <div id="editor-toast-mount"></div>
       <!-- quill-mount: Quill 在此初始化，toolbar 自動插在最前 -->
       <!-- buildEditor() 會把 title+tags 插入 .ql-container 之前 -->
       <div id="quill-mount"></div>
@@ -700,7 +707,7 @@ async function callGAS(action, extra={}) {
 }
 
 const TK='memoire_v10_theme';
-const APP_VERSION='v43';  // 主程式版本號，跟 sw.js 的 CACHE_NAME 要一起改
+const APP_VERSION='v44';  // 主程式版本號，跟 sw.js 的 CACHE_NAME 要一起改
 console.log('[Memoire] '+APP_VERSION);
 document.addEventListener('DOMContentLoaded',()=>{
   const el=document.getElementById('app-version-label');
@@ -708,6 +715,46 @@ document.addEventListener('DOMContentLoaded',()=>{
 });
 const CACHE_PREFIX='memoire_v10_content_';  // localStorage key prefix for content cache
 const INDEX_CACHE_KEY='memoire_v10_index';   // localStorage key for index cache
+// ── 版本號（v44：多裝置快取失效）──
+// 每次成功存檔產生一個版本號（存檔當下的時間戳記），同時寫進 index（updatedAt）與本機快取（CVER_PREFIX+日期）
+// 打開日記時比對兩邊是否「相同」：相同 = 快取是最新的；不同 = 別的裝置改過，改從 Drive 重新下載
+// 用「相不相同」而不是比新舊，裝置之間的時鐘誤差不會影響判斷
+const CVER_PREFIX='memoire_v10_cver_';
+function verStr(v){return v===undefined||v===null?'':String(v);}
+function getCacheVer(ds){return lsGet(CVER_PREFIX+ds)||'';}
+function setContentCache(ds,body,ver){lsSet(CACHE_PREFIX+ds,body);lsSet(CVER_PREFIX+ds,verStr(ver));}
+function delContentCache(ds){lsDel(CACHE_PREFIX+ds);lsDel(CVER_PREFIX+ds);}
+// 這篇在本機有尚未上傳的修改：本機版本才是最新的，不可被雲端覆蓋
+function isLocalProtected(ds){return !!mdSyncState[ds]||getSyncPending().some(i=>i.date===ds);}
+// 記憶體中的內文是否已落後雲端
+function isMemoryContentStale(ds){
+  const e=entries[ds];
+  if(!e||!e.content)return false;
+  if(isLocalProtected(ds))return false;
+  return verStr(e._cver)!==verStr(e.updatedAt);
+}
+// 所有 writeIndex 統一用這個組資料，確保版本號（updatedAt）不會被只改 metadata 的路徑洗掉
+function buildIndexEntry(ds){
+  const e=entries[ds]||{};
+  return {
+    title:e.title||'',
+    preview:getPlain(e.content||'').slice(0,100)||e.preview||'',
+    tags:e.tags||[],
+    mood:e.mood||'',
+    weather:e.weather||'',
+    location:e.location||'',
+    updatedAt:e.updatedAt||''
+  };
+}
+// index 快取只存 metadata，不存內文（內文另有獨立快取並附版本號；v44 前會把已載入的內文一起存進來，可能讓舊內文復活）
+function saveIndexCache(){
+  const slim={};
+  Object.keys(entries).forEach(ds=>{
+    const {content,_cver,_loadFailed,...meta}=entries[ds]||{};
+    slim[ds]=meta;
+  });
+  lsSet(INDEX_CACHE_KEY,JSON.stringify(slim));
+}
 
 // 設定 key 依裝置分開存
 function isMobileDevice(){return window.innerWidth<=767;}
@@ -742,42 +789,193 @@ function showLoadingState(msg){
 }
 
 // prefetched：解鎖頁驗證暗號時已經拿到的 readIndex 結果，直接沿用，不重複呼叫 GAS（v42）
-async function loadEntries(prefetched){
-  // 先用 localStorage cache 立刻渲染
-  const cached=lsGet(INDEX_CACHE_KEY);
-  if(cached){
-    try{
-      const raw=JSON.parse(cached);
-      // 過濾掉非法 key（必須符合 YYYY-MM-DD）
-      entries=Object.fromEntries(
-        Object.entries(raw).filter(([k])=>/^\d{4}-\d{2}-\d{2}$/.test(k))
-      );
-      renderCal();renderEntryList();renderListPage();
-    }catch(e){}
-  } else {
-    showLoadingState('連線中...');
-  }
-  // 背景從 Drive 拉最新資料
+// refresh：true 時是「回到前景」的背景更新，不重新套用本機 index 快取（v44）
+let lastIndexLoadAt=0, indexLoading=false;
+async function loadEntries(prefetched, refresh){
+  if(indexLoading)return;
+  indexLoading=true;
+  let cached=null;
   try{
+    if(!refresh){
+      // 先用 localStorage cache 立刻渲染
+      cached=lsGet(INDEX_CACHE_KEY);
+      if(cached){
+        try{
+          const raw=JSON.parse(cached);
+          // 過濾掉非法 key（必須符合 YYYY-MM-DD）；v44 起不沿用快取裡殘留的內文
+          entries=Object.fromEntries(
+            Object.entries(raw).filter(([k])=>/^\d{4}-\d{2}-\d{2}$/.test(k))
+              .map(([k,v])=>{const {content,_cver,...meta}=v||{};return [k,meta];})
+          );
+          renderCal();renderEntryList();renderListPage();
+        }catch(e){}
+      } else {
+        showLoadingState('連線中...');
+      }
+    }
+    // 背景從 Drive 拉最新資料
     const res=prefetched||await callGAS('readIndex');
     if(res.error){
-      if(!cached)showLoadingState(res.error==='unauthorized'?'請先輸入暗號':'連線失敗，請重新整理');
+      if(!refresh&&!cached)showLoadingState(res.error==='unauthorized'?'請先輸入暗號':'連線失敗，請重新整理');
       return;
     }
     const raw=res.data||{};
-    // 過濾掉非法 key
-    entries=Object.fromEntries(
+    const fresh=Object.fromEntries(
       Object.entries(raw).filter(([k])=>/^\d{4}-\d{2}-\d{2}$/.test(k))
     );
+    mergeFreshIndex(fresh);
     driveReady=true;
-    lsSet(INDEX_CACHE_KEY, JSON.stringify(entries));
-    renderCal();renderEntryList();renderListPage();
-    // 背景預先 cache 最近 20 筆 content
+    lastIndexLoadAt=Date.now();
+    saveIndexCache();
+    renderCal();renderEntryList();
+    if(document.getElementById('list-page').style.display!=='none'&&!currentSearch)renderListPage();
+    // 背景預先 cache 最近 20 筆 content（只抓版本不符的）
     prefetchRecentEntries(20);
   }catch(e){
-    if(!cached)showLoadingState('網路錯誤，請重新整理');
+    if(!refresh&&!cached)showLoadingState('網路錯誤，請重新整理');
+  }finally{
+    indexLoading=false;
   }
 }
+
+// 把雲端最新 index 合併進記憶體，而不是整份取代（v44）
+// - 正在編輯的那篇：保留本機狀態；若雲端版本不同，交給 handleRemoteChangeForCurrent 處理
+// - 有待同步修改的篇目：保留本機版本
+// - 其他篇：採用雲端 metadata；記憶體內文版本相同才保留，否則丟掉，下次打開重新下載
+// - 本機有、雲端沒有：視為已在其他裝置刪除（正在編輯或待同步的除外）
+function mergeFreshIndex(fresh){
+  const merged={};
+  let remoteChangedCurrent=null;
+  Object.keys(fresh).forEach(ds=>{
+    const old=entries[ds];
+    const nw=Object.assign({},fresh[ds]);
+    if(old&&ds===currentDate){
+      if(!isLocalProtected(ds)&&verStr(nw.updatedAt)!==verStr(old._cver!==undefined?old._cver:old.updatedAt)){
+        remoteChangedCurrent=nw;
+      }
+      merged[ds]=old;
+      return;
+    }
+    if(old&&isLocalProtected(ds)){merged[ds]=old;return;}
+    if(old&&old.content&&verStr(old._cver)===verStr(nw.updatedAt)){
+      nw.content=old.content;nw._cver=old._cver;
+    }
+    merged[ds]=nw;
+  });
+  Object.keys(entries).forEach(ds=>{
+    if(merged[ds])return;
+    if(ds===currentDate||isLocalProtected(ds))merged[ds]=entries[ds];
+  });
+  entries=merged;
+  if(remoteChangedCurrent)handleRemoteChangeForCurrent(currentDate,remoteChangedCurrent);
+}
+
+// ── 正在編輯的那篇被其他裝置改過（v44）──
+// 沒有修改過 → 自動載入雲端版本＋短暫提示；有尚未存檔的修改 → 衝突 banner，選擇前暫停自動存檔
+let conflictState=null;  // { ds, remote }
+const REFRESH_ICON='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8.1 8.1 0 0 0-15.5-2m-.5-4v4h4"/><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/></svg>';
+
+function handleRemoteChangeForCurrent(ds,remote){
+  if(!ds||ds!==currentDate)return;
+  if(conflictState&&conflictState.ds===ds){conflictState.remote=remote;return;}
+  if(entries[ds]&&entries[ds]._loadFailed){reloadFromCloud(ds,remote,null);return;}
+  if(isEntryDirty(ds)){
+    conflictState={ds,remote};
+    renderConflictBanner();
+    setSaveStatus('paused');
+  } else {
+    reloadFromCloud(ds,remote,'已載入其他裝置的修改');
+  }
+}
+
+async function reloadFromCloud(ds,remote,toastMsg){
+  clearTimeout(autoSaveTimer);
+  delContentCache(ds);
+  entries[ds]=Object.assign({},remote,{content:''});
+  saveIndexCache();
+  if(currentDate!==ds)return;
+  await openEntry(ds);  // 同一篇重新開啟：不會觸發離開存檔，內容走懶載入從 Drive 下載
+  if(toastMsg&&currentDate===ds)showEditorToast(toastMsg);
+}
+
+function showEditorToast(msg){
+  const mount=document.getElementById('editor-toast-mount');
+  if(!mount)return;
+  mount.innerHTML=`<div class="editor-toast-wrap"><div class="editor-toast">${REFRESH_ICON}<span id="editor-toast-text"></span></div></div>`;
+  const t=document.getElementById('editor-toast-text');if(t)t.textContent=msg;
+  clearTimeout(window._editorToastTimer);
+  window._editorToastTimer=setTimeout(()=>{if(mount)mount.innerHTML='';},3000);
+}
+
+function renderConflictBanner(){
+  const mount=document.getElementById('conflict-banner-mount');
+  if(!mount)return;
+  mount.innerHTML=`<div class="sync-banner">
+    <div class="sync-banner-icon">⚠️</div>
+    <div class="sync-banner-body">
+      <div class="sync-banner-title">這篇在其他裝置也被修改過</div>
+      <div class="sync-banner-desc">你在這台裝置的修改還沒存檔。請選擇要留下哪一個版本，另一個版本的修改會被取代。</div>
+      <div class="sync-banner-actions">
+        <button class="sync-btn-primary" onclick="resolveConflictKeepMine()">保留我的版本</button>
+        <button class="sync-btn-secondary" onclick="resolveConflictLoadCloud()">載入雲端版本</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function clearConflict(ds){
+  if(!conflictState)return;
+  if(ds&&conflictState.ds!==ds)return;
+  conflictState=null;
+  const mount=document.getElementById('conflict-banner-mount');
+  if(mount)mount.innerHTML='';
+  const st=document.getElementById('save-status');
+  if(st&&st.textContent==='暫停存檔')setSaveStatus('');
+}
+
+// 保留我的版本：以雲端版本為基準立即存檔，用本機內容取代雲端
+async function resolveConflictKeepMine(){
+  if(!conflictState)return;
+  const {ds,remote}=conflictState;
+  clearConflict(ds);
+  if(entries[ds])entries[ds].updatedAt=remote.updatedAt;
+  if(currentDate===ds){setSaveStatus('saving');await doSave();}
+  else persistEntry(ds);
+}
+
+// 載入雲端版本：二次確認後捨棄本機修改
+function resolveConflictLoadCloud(){
+  if(!conflictState)return;
+  const overlay=document.createElement('div');
+  overlay.className='leave-confirm-overlay';
+  overlay.id='conflict-confirm-overlay';
+  overlay.innerHTML=`<div class="leave-confirm-box">
+    <div class="leave-confirm-title">捨棄這台裝置的修改？</div>
+    <div class="leave-confirm-desc">會改為顯示雲端上的版本，你剛才在這台裝置打的內容將無法復原。</div>
+    <div class="leave-confirm-actions">
+      <button class="leave-confirm-btn-leave" onclick="closeConflictConfirm()">取消</button>
+      <button class="leave-confirm-btn-stay" onclick="confirmLoadCloud()">捨棄並載入</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+}
+function closeConflictConfirm(){const el=document.getElementById('conflict-confirm-overlay');if(el)el.remove();}
+async function confirmLoadCloud(){
+  closeConflictConfirm();
+  if(!conflictState)return;
+  const {ds,remote}=conflictState;
+  clearConflict(ds);
+  await reloadFromCloud(ds,remote,'已載入雲端版本');
+}
+
+// 回到前景時，距離上次更新超過 5 分鐘就在背景重抓 index（手機 PWA 常常好幾天不關，切回來時 App 並沒有重新啟動）
+const INDEX_REFRESH_MS=5*60*1000;
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState!=='visible')return;
+  if(!appStarted||!getSecret())return;
+  if(Date.now()-lastIndexLoadAt<INDEX_REFRESH_MS)return;
+  loadEntries(null,true);
+});
 
 // ── Front Matter 讀寫工具（對應 GAS 端 buildFrontMatter/parseFrontMatter，格式須保持一致）──
 const FM_FIELDS=['title','tags','mood','weather','location'];
@@ -831,18 +1029,21 @@ function applyMetaToEntry(ds,meta){
   entries[ds].location=meta.location;
 }
 
-// 背景逐筆抓取最近 N 筆，已有 cache 的跳過
+// 背景逐筆抓取最近 N 筆；v44：快取存在「且版本相同」才跳過，別的裝置改過的會重新下載
 async function prefetchRecentEntries(n){
   const sorted=Object.keys(entries).sort((a,b)=>b.localeCompare(a)).slice(0,n);
   for(const ds of sorted){
-    // 已有 cache 跳過
-    if(lsGet(CACHE_PREFIX+ds)!==null)continue;
+    if(ds===currentDate||isLocalProtected(ds))continue;
+    if(lsGet(CACHE_PREFIX+ds)!==null&&getCacheVer(ds)===verStr(entries[ds]&&entries[ds].updatedAt))continue;
     try{
       const res=await callGAS('readEntry',{date:ds});
+      if(!res||res.error)continue;
       const raw=res.content||'';
       const{meta,body}=parseFrontMatter(raw);
+      if(!entries[ds]||ds===currentDate)continue;
       if(hasFrontMatter(raw))applyMetaToEntry(ds,meta);
-      lsSet(CACHE_PREFIX+ds,body);
+      setContentCache(ds,body,entries[ds].updatedAt);
+      if(entries[ds].content!==undefined){entries[ds].content=body;entries[ds]._cver=entries[ds].updatedAt;}
       // 每筆間隔 300ms，避免 GAS 過載
       await new Promise(r=>setTimeout(r,300));
     }catch(e){}
@@ -879,6 +1080,7 @@ function captureSnapshot(ds){
 // 判斷離開時，這篇日記是否真的跟「進入當下」不一樣
 // 找不到對應快照時保守回傳 true（寧可多存，不要漏存）
 function isEntryDirty(ds){
+  if(entries[ds]&&entries[ds]._loadFailed)return false;  // v44
   if(entrySnapshotDate!==ds)return true;
   return fieldsSnapshot(ds)!==entrySnapshot;
 }
@@ -886,6 +1088,7 @@ function isEntryDirty(ds){
 // 1. 把 DOM 當前值同步進 entries memory（純同步，不 async，不碰 GAS）
 function flushCurrentToMemory(){
   if(!currentDate)return;
+  if(entries[currentDate]&&entries[currentDate]._loadFailed)return;  // v44：載入失敗時畫面是空的，不可寫回記憶體
   if(!entries[currentDate])entries[currentDate]={title:'',content:'',tags:[],mood:'',weather:'',location:''};
   const ti=document.getElementById('title-input');
   if(ti)entries[currentDate].title=ti.value;
@@ -1030,14 +1233,16 @@ async function persistMdWithRetry(ds,fullContent){
 // v41：md 優先序——md 寫入（含重試）成功後才寫 index，取代原本的 Promise.all 平行送出
 async function persistEntry(ds){
   if(!ds||!entries[ds])return;
+  if(entries[ds]._loadFailed)return;  // v44：內容沒載入成功，絕不寫入
+  if(conflictState&&conflictState.ds===ds)return;  // v44：衝突 banner 顯示中，等使用者選擇
   const e=entries[ds];
   const plain=getPlain(e.content||'');
   const isEmpty=!e.title?.trim()&&!plain.trim();
   if(isEmpty){
     delete entries[ds];
-    lsDel(CACHE_PREFIX+ds);
+    delContentCache(ds);
     callGAS('deleteEntry',{date:ds});
-    lsSet(INDEX_CACHE_KEY,JSON.stringify(entries));
+    saveIndexCache();
     return;
   }
   const meta={
@@ -1048,22 +1253,20 @@ async function persistEntry(ds){
     location:e.location||''
   };
   const fullContent=buildFrontMatter(meta)+'\n\n'+(e.content||'');
+  const newVer=Date.now();  // v44：這次存檔的版本號
   const mdOk=await persistMdWithRetry(ds,fullContent);
-  // 內容先快取進 localStorage，不論 md 是否成功同步到雲端，至少本機不會丟
-  lsSet(CACHE_PREFIX+ds,e.content||'');
   if(!mdOk){
+    // 內容先快取進 localStorage（版本號維持舊的），至少本機不會丟；待同步標記會保護它不被雲端覆蓋
+    lsSet(CACHE_PREFIX+ds,e.content||'');
     // md 沒同步成功：不更新 dirty 快照基準，讓下次離開這篇時仍判定為 dirty、有機會再次觸發存檔
     return;
   }
-  callGAS('writeIndex',{date:ds,entry:{
-    title:e.title||'',
-    preview:plain.slice(0,100),
-    tags:e.tags||[],
-    mood:e.mood||'',
-    weather:e.weather||'',
-    location:e.location||''
-  }});
-  lsSet(INDEX_CACHE_KEY,JSON.stringify(entries));
+  // md 成功：記憶體、本機快取、index 三處都換成新版本號（先更新記憶體再送 index，背景更新比對時才不會誤判）
+  e.updatedAt=newVer;
+  e._cver=newVer;
+  setContentCache(ds,e.content||'',newVer);
+  callGAS('writeIndex',{date:ds,entry:buildIndexEntry(ds)});
+  saveIndexCache();
   if(currentDate===ds){entrySnapshotDate=ds;entrySnapshot=fieldsSnapshot(ds);} // 只在還停留在同一篇時更新基準，離開後背景存的不動全域快照
 }
 
@@ -1075,27 +1278,32 @@ async function saveEntries(ds){
 // 讀取單筆日記 content（有 cache 直接用，否則從 Drive 抓）
 // 讀到內容後先解析 front matter：剝離後的乾淨內文才回傳/存進 cache，meta 同步覆蓋回 entries[ds]
 // 連 cache 命中的情況也一併檢查，可自動修好舊版程式殘留的髒 cache
+// v44：快取版本與 index 版本相同（或本機有待同步修改）才用快取，否則從 Drive 重新下載
+// 回傳 null 代表載入失敗（呼叫端不可把它當成「空白日記」，否則使用者一打字就會用空內容蓋掉雲端正本）
 async function loadEntryContent(ds){
-  // 先查 localStorage cache
+  const idxVer=verStr(entries[ds]&&entries[ds].updatedAt);
   const cached=lsGet(CACHE_PREFIX+ds);
-  if(cached!==null){
+  if(cached!==null&&(isLocalProtected(ds)||getCacheVer(ds)===idxVer)){
+    if(entries[ds])entries[ds]._cver=getCacheVer(ds);
     if(hasFrontMatter(cached)){
       const{meta,body}=parseFrontMatter(cached);
       applyMetaToEntry(ds,meta);
-      lsSet(CACHE_PREFIX+ds,body);
+      setContentCache(ds,body,getCacheVer(ds));
       return body;
     }
     return cached;
   }
-  // cache miss，從 Drive 抓
+  // 沒有快取或版本不符，從 Drive 抓
   try{
     const res=await callGAS('readEntry',{date:ds});
+    if(!res||res.error)return null;
     const raw=res.content||'';
     const{meta,body}=parseFrontMatter(raw);
     if(hasFrontMatter(raw))applyMetaToEntry(ds,meta);
-    lsSet(CACHE_PREFIX+ds,body);
+    setContentCache(ds,body,idxVer);
+    if(entries[ds])entries[ds]._cver=idxVer;
     return body;
-  }catch(e){return '';}
+  }catch(e){return null;}
 }
 function loadTheme(){try{const v=lsGet(TK);if(v)applyTheme(v,false);}catch(e){}}
 function setTheme(t){applyTheme(t,true);}
@@ -1257,13 +1465,19 @@ async function goBack(){
   if(currentDate){
     const dsCheck=currentDate;
     if(!(await confirmLeaveIfSyncFailed(dsCheck)))return; // 使用者選擇留下繼續處理
+    clearConflict(dsCheck);  // v44
+    if(entries[dsCheck]&&entries[dsCheck]._loadFailed){  // v44：內容沒載入成功，不存檔也不判斷空白刪除
+      delete entries[dsCheck]._loadFailed;
+      showListPage();
+      return;
+    }
     flushCurrentToMemory();
     const ds=currentDate;
     const e=entries[ds];
     const isEmpty=!e?.title?.trim()&&!getPlain(e?.content||'').trim();
     if(isEmpty){
       delete entries[ds];
-      lsDel(CACHE_PREFIX+ds);
+      delContentCache(ds);
       showListPage();
       callGAS('deleteEntry',{date:ds});
     } else {
@@ -1279,10 +1493,13 @@ async function openEntry(ds){
   const prevDate=currentDate;
   if(prevDate&&prevDate!==ds){
     if(!(await confirmLeaveIfSyncFailed(prevDate)))return; // 使用者選擇留下繼續處理
+    clearConflict(prevDate);          // v44：沒做選擇就離開 = 保留本機版本（照 isDirty 存檔）
     flushCurrentToMemory();           // 同步：DOM → memory
     if(isEntryDirty(prevDate))persistEntry(prevDate);  // 只有真的變動過才背景存檔（v40）
   }
   currentDate=ds;calYear=parseInt(ds.slice(0,4));calMonth=parseInt(ds.slice(5,7))-1;
+  // v44：記憶體中的內文若已落後雲端版本，丟掉改走懶載入重新下載
+  if(entries[ds]&&isMemoryContentStale(ds))entries[ds].content='';
   // 若 content 尚未載入（lazy load）
   if(entries[ds]&&!entries[ds].content){
     showEditorPage();
@@ -1294,7 +1511,15 @@ async function openEntry(ds){
     overlay.innerHTML='<div class="editor-loading-spinner"></div><div class="editor-loading-text">載入中...</div>';
     if(mount)mount.appendChild(overlay);
     const content=await loadEntryContent(ds);
-    if(currentDate===ds){  // 確認還在同一篇
+    if(currentDate===ds&&content===null&&entries[ds]){
+      // v44：載入失敗——保留遮罩、禁止編輯並標記，離開時不存檔也不刪除，避免用空內容蓋掉雲端正本
+      entries[ds]._loadFailed=true;
+      const t=overlay.querySelector('.editor-loading-text');
+      const sp=overlay.querySelector('.editor-loading-spinner');
+      if(sp)sp.remove();
+      if(t)t.textContent='內容載入失敗，請檢查網路後返回重新開啟';
+    } else if(currentDate===ds&&entries[ds]){  // 確認還在同一篇
+      delete entries[ds]._loadFailed;
       entries[ds].content=content;
       if(quill){
         // 先拔掉監聽器再貼內容，避免這次程式化貼入被誤判成使用者打字、觸發自動存檔（v40）
@@ -1304,6 +1529,7 @@ async function openEntry(ds){
       }
       overlay.remove();
       captureSnapshot(ds);  // 內容補齊後才拍快照，避免誤判成內文變動（v40）
+      updateWordCount();    // v44：懶載入後重算字數（原本會顯示 0 字）
     }
   } else {
     showEditorPage();buildEditor(entries[ds]||{});
@@ -1317,6 +1543,7 @@ async function newEntryOnDate(ds){
   const prevDate=currentDate;
   if(prevDate&&prevDate!==ds){
     if(!(await confirmLeaveIfSyncFailed(prevDate)))return; // 使用者選擇留下繼續處理
+    clearConflict(prevDate);  // v44
     flushCurrentToMemory();
     if(isEntryDirty(prevDate))persistEntry(prevDate);  // v40
   }
@@ -1324,6 +1551,8 @@ async function newEntryOnDate(ds){
 }
 
 function buildEditor(e){
+  if(conflictState&&conflictState.ds!==currentDate)clearConflict();  // v44
+  const tm=document.getElementById('editor-toast-mount');if(tm)tm.innerHTML='';
   const mv=document.getElementById('mood-val');
   if(mv){
     mv.textContent=e.mood||'分析後顯示';
@@ -1768,6 +1997,7 @@ function onInput(){
   autoSaveTimer=setTimeout(()=>{
     flushCurrentToMemory();
     const ds=currentDate;
+    if(conflictState&&conflictState.ds===ds){setSaveStatus('paused');return;}  // v44：衝突未選擇前不存檔
     persistEntry(ds).then(()=>{
       if(currentDate===ds){setSaveStatus('saved');renderEntryList();renderCal();setTimeout(()=>setSaveStatus(''),2500);}
     });
@@ -1834,21 +2064,13 @@ function renderAISummaryTags(tags, suggestedTags){
   addBtn.onclick=addTagPrompt;
   bar.appendChild(addBtn);
 }
-function setSaveStatus(s){const el=document.getElementById('save-status');if(!el)return;if(s==='saving'){el.textContent='儲存中...';el.className='save-status saving';}else if(s==='saved'){el.textContent='已儲存';el.className='save-status';}else{el.textContent='';el.className='save-status';}}
+function setSaveStatus(s){const el=document.getElementById('save-status');if(!el)return;el.style.color='';if(s==='saving'){el.textContent='儲存中...';el.className='save-status saving';}else if(s==='saved'){el.textContent='已儲存';el.className='save-status';}else if(s==='paused'){el.textContent='暫停存檔';el.className='save-status';el.style.color='var(--warn)';return;}else{el.textContent='';el.className='save-status';}}
 
 
 // 只更新 index 單筆（天氣、地點等 metadata 異動時用）
 async function doSaveIndexOnly(ds){
   if(!ds||ds==='null'||!/^\d{4}-\d{2}-\d{2}$/.test(ds)||!entries[ds])return;
-  const e=entries[ds];
-  await callGAS('writeIndex',{date:ds,entry:{
-    title:e.title||'',
-    preview:getPlain(e.content||'').slice(0,100),
-    tags:e.tags||[],
-    mood:e.mood||'',
-    weather:e.weather||'',
-    location:e.location||''
-  }});
+  await callGAS('writeIndex',{date:ds,entry:buildIndexEntry(ds)});  // v44：保留版本號
 }
 // doSave：flush DOM → persist 當前篇（autosave 和手動儲存用）
 async function doSave(){
@@ -1967,9 +2189,9 @@ function removeTag(t){if(!currentDate||!entries[currentDate])return;entries[curr
 async function deleteEntry(ds){
   if(!confirm('確定要刪除這篇日記？'))return;
   delete entries[ds];
-  lsDel(CACHE_PREFIX+ds);
+  delContentCache(ds);
   // 先更新畫面，背景執行 Drive 刪除
-  lsSet(INDEX_CACHE_KEY, JSON.stringify(entries));
+  saveIndexCache();
   if(currentDate===ds)showListPage();
   else{renderEntryList();renderListPage();renderCal();}
   callGAS('deleteEntry',{date:ds}); // 不 await
@@ -2058,14 +2280,7 @@ async function analyzeMood(){
     entries[ds].mood=parsed.mood;
     showMood(parsed.mood,true);
     // mood 目前只更新 index（寫回 .md 留待 v46 方案 A 收口處理；離開這篇時 isDirty 會判定變動並補寫 .md）
-    callGAS('writeIndex',{date:ds,entry:{
-      title:entries[ds].title||'',
-      preview:getPlain(entries[ds].content||'').slice(0,100),
-      tags:entries[ds].tags||[],
-      mood:parsed.mood,
-      weather:entries[ds].weather||'',
-      location:entries[ds].location||''
-    }});
+    callGAS('writeIndex',{date:ds,entry:buildIndexEntry(ds)});  // v44：保留版本號
   }
   if(Array.isArray(parsed.tags)&&parsed.tags.length){
     const ex=entries[ds].tags||[];
@@ -2306,10 +2521,7 @@ async function renameTag(oldName){
   });
   // 批次更新所有受影響日記的 index
   const affected=Object.keys(entries).filter(ds=>(entries[ds].tags||[]).includes(n)||(entries[ds].tags||[]).includes(oldName));
-  await Promise.all(affected.map(ds=>callGAS('writeIndex',{date:ds,entry:{
-    title:entries[ds].title||'',preview:getPlain(entries[ds].content||'').slice(0,100),
-    tags:entries[ds].tags||[],mood:entries[ds].mood||'',weather:entries[ds].weather||'',location:entries[ds].location||''
-  }})));
+  await Promise.all(affected.map(ds=>callGAS('writeIndex',{date:ds,entry:buildIndexEntry(ds)})));
   renderTagsPage();
 }
 
@@ -2325,10 +2537,7 @@ async function deleteTag(name){
   });
   if(activeFilterTag===name)activeFilterTag=null;
   // 批次更新受影響日記的 index
-  await Promise.all(affected.map(ds=>callGAS('writeIndex',{date:ds,entry:{
-    title:entries[ds].title||'',preview:getPlain(entries[ds].content||'').slice(0,100),
-    tags:entries[ds].tags||[],mood:entries[ds].mood||'',weather:entries[ds].weather||'',location:entries[ds].location||''
-  }})));
+  await Promise.all(affected.map(ds=>callGAS('writeIndex',{date:ds,entry:buildIndexEntry(ds)})));
   renderTagsPage();
 }
 
@@ -2820,7 +3029,7 @@ function logoutDevice(){
     const keys=[];
     for(let i=0;i<localStorage.length;i++){
       const k=localStorage.key(i);
-      if(k===SECRET_KEY||k===INDEX_CACHE_KEY||k===SYNC_PENDING_KEY||(k&&k.indexOf(CACHE_PREFIX)===0))keys.push(k);
+      if(k===SECRET_KEY||k===INDEX_CACHE_KEY||k===SYNC_PENDING_KEY||(k&&k.indexOf(CACHE_PREFIX)===0)||(k&&k.indexOf(CVER_PREFIX)===0))keys.push(k);
     }
     keys.forEach(k=>localStorage.removeItem(k));
   }catch(e){}
