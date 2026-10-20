@@ -17,8 +17,8 @@
 .theme-warm{--bg:#1E1A14;--sidebar-bg:#19160F;--border:#2C2318;--accent-light:#B8762A;--accent:#9A5E18;--text-title:#E8DEC4;--text-body:#B8A888;--text-muted:#887060;--tag:#B8762A;--today-bg:#9A5E18;--card-bg:#232018;--hover:#272318;}
 .theme-teal{--bg:#181E20;--sidebar-bg:#131A1C;--border:#222E32;--accent-light:#3AA898;--accent:#1E7868;--text-title:#D8E8E4;--text-body:#8AACAC;--text-muted:#5A7878;--tag:#3AA898;--today-bg:#1E7868;--card-bg:#1C2426;--hover:#1F2A2C;}
 *{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;background:var(--bg);color:var(--text-title);font-size:var(--fs-body);height:100vh;overflow:hidden;}
-#app{display:flex;height:100vh;overflow:hidden;}
+body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;background:var(--bg);color:var(--text-title);font-size:var(--fs-body);height:100vh;height:100dvh;overflow:hidden;}  /* v45.1：100dvh = 手機實際可見高度（不含網址列、工具列）；舊瀏覽器不支援時沿用上一行的 100vh */
+#app{display:flex;height:100vh;height:100dvh;overflow:hidden;}
 
 #sidebar{width:240px;min-width:240px;background:var(--sidebar-bg);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;transition:width 0.2s,min-width 0.2s;}
 #sidebar.collapsed{width:0;min-width:0;border-right:none;}
@@ -292,7 +292,7 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
 .ai-q-paste{margin-left:auto;color:var(--accent-light);font-size:var(--fs-btn);cursor:pointer;white-space:nowrap;}
 .ai-q-paste:hover{color:var(--text-title);}
 .ai-q-close{margin-left:8px;}
-.action-bar{padding:7px 16px;border-top:1px solid var(--border);display:flex;align-items:center;gap:6px;}
+.action-bar{padding:7px 16px calc(7px + env(safe-area-inset-bottom));border-top:1px solid var(--border);display:flex;align-items:center;gap:6px;}
 .ts-btn{background:none;border:1px solid var(--border);border-radius:5px;padding:5px 10px;font-size:var(--fs-btn);color:var(--text-muted);cursor:pointer;font-family:inherit;}
 .ts-btn:hover{border-color:var(--accent-light);color:var(--accent-light);}
 .ai-btn{background:none;border:1px solid var(--border);border-radius:5px;padding:5px 10px;font-size:var(--fs-btn);color:var(--text-muted);cursor:pointer;font-family:inherit;}
@@ -315,7 +315,7 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
 #settings-page{flex:1;display:none;flex-direction:column;overflow:hidden;}
 .settings-topbar{padding:7px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;background:var(--sidebar-bg);flex-shrink:0;}
 .settings-topbar-title{font-size:var(--fs-subtitle);font-weight:600;color:var(--text-body);flex:1;}
-.settings-body{flex:1;overflow-y:auto;padding:16px;}
+.settings-body{flex:1;overflow-y:auto;padding:16px 16px calc(24px + env(safe-area-inset-bottom));}
 .settings-section{margin-bottom:24px;}
 .settings-section-title{font-size:var(--fs-btn);font-weight:600;color:var(--text-muted);letter-spacing:0.5px;text-transform:uppercase;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border);}
 .settings-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);gap:12px;}
@@ -707,7 +707,7 @@ async function callGAS(action, extra={}) {
 }
 
 const TK='memoire_v10_theme';
-const APP_VERSION='v45';  // 主程式版本號（v45 起 sw.js 改為 network-first，不必再同步改 CACHE_NAME）
+const APP_VERSION='v45.1';  // 主程式版本號（v45 起 sw.js 改為 network-first，不必再同步改 CACHE_NAME）
 console.log('[Memoire] '+APP_VERSION);
 document.addEventListener('DOMContentLoaded',()=>{
   const el=document.getElementById('app-version-label');
