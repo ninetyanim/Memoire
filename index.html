@@ -639,14 +639,6 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
         <div class="settings-section">
           <div class="settings-section-title">資料</div>
           <div class="settings-row">
-            <div class="settings-label-wrap"><div class="settings-label">匯出所有日記</div></div>
-            <button class="settings-action-btn" onclick="exportEntries()">匯出 .md</button>
-          </div>
-          <div class="settings-row">
-            <div class="settings-label-wrap"><div class="settings-label">匯出 index 快取（除錯用）</div><div class="settings-desc">暫時功能，救援 index.json 用，之後會移除</div></div>
-            <button class="settings-action-btn" onclick="exportIndexJSON()">匯出 JSON</button>
-          </div>
-          <div class="settings-row">
             <div class="settings-label-wrap"><div class="settings-label">還原備份</div><div class="settings-desc">index.json 每天自動備份一次，可還原到指定日期</div></div>
             <button class="settings-action-btn" onclick="openBackupModal()">還原備份</button>
           </div>
@@ -710,7 +702,7 @@ async function callGAS(action, extra={}) {
 }
 
 const TK='memoire_v10_theme';
-const APP_VERSION='v46';  // 主程式版本號（v45 起 sw.js 改為 network-first，不必再同步改 CACHE_NAME）
+const APP_VERSION='v47';  // 主程式版本號（v45 起 sw.js 改為 network-first，不必再同步改 CACHE_NAME）
 console.log('[Memoire] '+APP_VERSION);
 document.addEventListener('DOMContentLoaded',()=>{
   const el=document.getElementById('app-version-label');
@@ -1457,7 +1449,32 @@ function fmtDate(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2
 function fmtDisplay(ds){const d=new Date(ds+'T12:00:00');const dw=['日','一','二','三','四','五','六'];return d.getFullYear()+' 年 '+(d.getMonth()+1)+' 月 '+d.getDate()+' 日（'+dw[d.getDay()]+'）';}
 function fmtDow(ds){return['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(ds+'T12:00:00').getDay()];}
 function fmtMG(ds){const d=new Date(ds+'T12:00:00');return['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()]+', '+d.getFullYear();}
-function getPlain(html){return(html||'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();}
+// ── v47：文字安全顯示 ──
+// 使用者輸入的文字（標題、標籤、地點、心情、預覽、搜尋字詞）放進畫面前一律先 esc()，只當文字顯示
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+// 把 &amp; &nbsp; &lt; 等網頁碼轉回真正的文字（textarea 只解碼、不執行任何東西）
+const _decodeEl=document.createElement('textarea');
+function decodeEntities(s){if(!s||s.indexOf('&')===-1)return s||'';_decodeEl.innerHTML=s;return _decodeEl.value;}
+// 內文 HTML → 純文字（v47：網頁碼轉回真正的文字；畫面顯示時再 esc）
+function getPlain(html){return decodeEntities((html||'').replace(/<[^>]+>/g,' ')).replace(/\s+/g,' ').trim();}
+// 卡片預覽用：內文沒載入時用 index 上的 preview（preview 已是純文字，不再去標籤；舊資料可能含網頁碼，一起轉回）
+function plainOf(e){return getPlain(e.content)||decodeEntities(e.preview||'').replace(/\s+/g,' ').trim();}
+// 標籤名稱檢查：.md 的 front matter 用逗號分隔標籤，名稱有逗號會被拆成兩個
+function tagNameError(t){return /[,，]/.test(t)?'標籤名稱不能有逗號（, 或 ，）':'';}
+// 搜尋結果高亮：先切出符合的片段，每段各自 esc，不會把網頁碼切壞
+function highlightEsc(text,keywords){
+  if(!text)return '';
+  const ks=(keywords||[]).filter(Boolean).sort((a,b)=>b.length-a.length);
+  if(!ks.length)return esc(text);
+  const re=new RegExp(ks.map(k=>k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|'),'gi');
+  let out='',last=0,m;
+  while((m=re.exec(text))){
+    if(!m[0]){re.lastIndex++;continue;}
+    out+=esc(text.slice(last,m.index))+'<span class="search-highlight">'+esc(m[0])+'</span>';
+    last=m.index+m[0].length;
+  }
+  return out+esc(text.slice(last));
+}
 function isMobile(){return window.innerWidth<=767;}
 function toggleSidebar(){
   if(isMobile()){
@@ -1526,54 +1543,60 @@ function renderEntryList(){
   if(!sorted.length){list.innerHTML='<div style="padding:10px 12px;font-size:var(--fs-small);color:var(--text-muted);">尚無日記</div>';return;}
   list.innerHTML=sorted.map(ds=>{
     const e=entries[ds];const cls=ds===currentDate?'entry-item active':'entry-item';
-    const label=e.title||(getPlain(e.content)||e.preview||'').slice(0,20)||'（無內容）';
-    return `<div class="${cls}" onclick="openEntry('${ds}')"><div class="entry-item-text"><div class="entry-date">${fmtDisplay(ds)}</div><div class="entry-title-s">${label}</div></div><button class="entry-del" onclick="event.stopPropagation();deleteEntry('${ds}')">✕</button></div>`;
+    const label=e.title||plainOf(e).slice(0,20)||'（無內容）';
+    return `<div class="${cls}" onclick="openEntry('${ds}')"><div class="entry-item-text"><div class="entry-date">${fmtDisplay(ds)}</div><div class="entry-title-s">${esc(label)}</div></div><button class="entry-del" onclick="event.stopPropagation();deleteEntry('${ds}')">✕</button></div>`;
   }).join('');
 }
 
-function renderListPage(){
-  const page=document.getElementById('list-page');
-  const sorted=Object.keys(entries).sort((a,b)=>b.localeCompare(a));
-  if(!sorted.length){page.innerHTML=`<div class="list-empty"><div style="font-size:32px;opacity:0.3;">📖</div><div style="font-size:var(--fs-btn);">還沒有日記，點擊「＋ 新增」開始</div></div>`;return;}
-  const groups={};sorted.forEach(ds=>{const g=fmtMG(ds);if(!groups[g])groups[g]=[];groups[g].push(ds);});
-  const totalCount=sorted.length;
-  let html=`<div style="padding:8px 14px 2px;font-size:var(--fs-small);color:var(--text-muted);">共 ${totalCount} 篇日記</div>`;
-  Object.keys(groups).forEach(g=>{
-    html+=`<div class="list-month-group"><div class="list-month-label">${g}</div><div class="list-cards-wrap">`;
-    groups[g].forEach(ds=>{
-      const e=entries[ds],plain=getPlain(e.content)||e.preview||'',hasTitle=!!(e.title&&e.title.trim());
-      const tags=(e.tags||[]).map(t=>`<span class="list-card-tag" onclick="event.stopPropagation();jumpToTag('${t}')">${t}</span>`).join('');
-      // 底部 meta 列：天氣 · 地點 · 心情 · 標籤（有什麼顯示什麼）
-      const metaParts=[];
-      if(e.weather)metaParts.push(`<span class="lc-meta-item">${e.weather}</span>`);
-      if(e.location)metaParts.push(`<span class="lc-meta-item">${'<svg width="8" height="11" viewBox="0 0 10 14" fill="none" style="display:inline;vertical-align:middle;margin-right:2px;"><path d="M5 0C2.24 0 0 2.24 0 5C0 8.75 5 14 5 14C5 14 10 8.75 10 5C10 2.24 7.76 0 5 0ZM5 6.5C4.17 6.5 3.5 5.83 3.5 5C3.5 4.17 4.17 3.5 5 3.5C5.83 3.5 6.5 4.17 6.5 5C6.5 5.83 5.83 6.5 5 6.5Z" fill="var(--accent-light)"/></svg>'}${e.location}</span>`);
-      if(e.mood)metaParts.push(`<span class="lc-meta-item">${e.mood}</span>`);
-      const metaHtml=metaParts.length?metaParts.join('<span class="lc-meta-dot">·</span>')+( tags?'<span class="lc-meta-dot">·</span>'+tags:''):'';
-      const bottomRow=metaHtml||(tags?tags:'');
-      const conflictItem=getSyncPending().some(i=>i.date===ds&&i.type==='conflict');
-      const syncBadge=conflictItem
-        ?`<span class="sync-badge" title="其他裝置也修改過這篇，點擊打開處理" onclick="event.stopPropagation();openEntry('${ds}')"><span class="sync-badge-dot"></span>衝突</span>`
-        :getSyncPending().some(i=>i.date===ds&&i.type==='md')
-        ?`<span class="sync-badge" title="點擊查看同步狀態" onclick="event.stopPropagation();retrySync('${ds}')"><span class="sync-badge-dot"></span>未同步</span>`
-        :'';
-      html+=`<div class="list-card" onclick="openEntry('${ds}')">
+// ── v47：日記卡片（主列表、搜尋、今日回顧、標籤篩選共用）──
+// opt.showYear：顯示「YYYY 年」（今日回顧）；opt.showDelete：顯示刪除鈕（只有主列表）；opt.keywords：搜尋高亮
+const CARD_PIN_SVG='<svg width="8" height="11" viewBox="0 0 10 14" fill="none" style="display:inline;vertical-align:middle;margin-right:2px;"><path d="M5 0C2.24 0 0 2.24 0 5C0 8.75 5 14 5 14C5 14 10 8.75 10 5C10 2.24 7.76 0 5 0ZM5 6.5C4.17 6.5 3.5 5.83 3.5 5C3.5 4.17 4.17 3.5 5 3.5C5.83 3.5 6.5 4.17 6.5 5C6.5 5.83 5.83 6.5 5 6.5Z" fill="var(--accent-light)"/></svg>';
+function renderCard(ds,opt){
+  opt=opt||{};
+  const e=entries[ds];
+  const H=opt.keywords?(t=>highlightEsc(t,opt.keywords)):esc;
+  const plain=plainOf(e),hasTitle=!!(e.title&&e.title.trim());
+  const tags=(e.tags||[]).map(t=>`<span class="list-card-tag" data-tag="${esc(t)}" onclick="event.stopPropagation();jumpToTag(this.dataset.tag)">${H(t)}</span>`).join('');
+  // 底部 meta 列：天氣 · 地點 · 心情 · 標籤（有什麼顯示什麼）
+  const metaParts=[];
+  if(e.weather)metaParts.push(`<span class="lc-meta-item">${esc(e.weather)}</span>`);
+  if(e.location)metaParts.push(`<span class="lc-meta-item">${CARD_PIN_SVG}${esc(e.location)}</span>`);
+  if(e.mood)metaParts.push(`<span class="lc-meta-item">${esc(e.mood)}</span>`);
+  const metaHtml=metaParts.join('<span class="lc-meta-dot">·</span>');
+  const bottomRow=metaHtml?(metaHtml+(tags?'<span class="lc-meta-dot">·</span>'+tags:'')):tags;
+  const pending=getSyncPending();
+  const syncBadge=pending.some(i=>i.date===ds&&i.type==='conflict')
+    ?`<span class="sync-badge" title="其他裝置也修改過這篇，點擊打開處理" onclick="event.stopPropagation();openEntry('${ds}')"><span class="sync-badge-dot"></span>衝突</span>`
+    :pending.some(i=>i.date===ds&&i.type==='md')
+    ?`<span class="sync-badge" title="點擊查看同步狀態" onclick="event.stopPropagation();retrySync('${ds}')"><span class="sync-badge-dot"></span>未同步</span>`
+    :'';
+  return `<div class="list-card" onclick="openEntry('${ds}')">
         <div class="list-card-left">
           <div class="list-card-dow">${fmtDow(ds)}</div>
           <div class="list-card-day">${parseInt(ds.slice(8))}</div>
         </div>
         <div class="list-card-divider"></div>
         <div class="list-card-body">
-          ${hasTitle?`<div class="list-card-title">${e.title}</div>`:''}
-          ${plain?`<div class="list-card-preview">${plain.slice(0,120)}</div>`:(hasTitle?'':`<div class="list-card-preview" style="opacity:0.4;">（無內容）</div>`)}
+          ${opt.showYear?`<div style="font-size:var(--fs-small);color:var(--accent-light);margin-bottom:3px;font-weight:500;">${ds.slice(0,4)} 年</div>`:''}
+          ${hasTitle?`<div class="list-card-title">${H(e.title)}</div>`:''}
+          ${plain?`<div class="list-card-preview">${H(plain.slice(0,120))}</div>`:(hasTitle?'':`<div class="list-card-preview" style="opacity:0.4;">（無內容）</div>`)}
           ${bottomRow?`<div class="list-card-tags">${bottomRow}</div>`:''}
         </div>
         ${syncBadge}
-        <button class="list-card-del" onclick="event.stopPropagation();deleteEntry('${ds}')">✕</button>
+        ${opt.showDelete?`<button class="list-card-del" onclick="event.stopPropagation();deleteEntry('${ds}')">✕</button>`:''}
       </div>`;
-    });
-    html+=`</div></div>`;
-  });
-  page.innerHTML=html;
+}
+// 依月份分組輸出卡片
+function renderCardGroups(dates,opt){
+  const groups={};dates.forEach(ds=>{const g=fmtMG(ds);if(!groups[g])groups[g]=[];groups[g].push(ds);});
+  return Object.keys(groups).map(g=>`<div class="list-month-group"><div class="list-month-label">${g}</div><div class="list-cards-wrap">${groups[g].map(ds=>renderCard(ds,opt)).join('')}</div></div>`).join('');
+}
+
+function renderListPage(){
+  const page=document.getElementById('list-page');
+  const sorted=Object.keys(entries).sort((a,b)=>b.localeCompare(a));
+  if(!sorted.length){page.innerHTML=`<div class="list-empty"><div style="font-size:32px;opacity:0.3;">📖</div><div style="font-size:var(--fs-btn);">還沒有日記，點擊「＋ 新增」開始</div></div>`;return;}
+  page.innerHTML=`<div style="padding:8px 14px 2px;font-size:var(--fs-small);color:var(--text-muted);">共 ${sorted.length} 篇日記</div>`+renderCardGroups(sorted,{showDelete:true});
 }
 
 async function showListPage(){  // v45：在編輯器裡時先存檔再切頁
@@ -1984,13 +2007,13 @@ function renderWeatherLocation(e){
 function renderWLRow(row,weather,location,locationDenied=false){
   if(!row)return;
   let html='';
-  if(weather) html+=`<div class="wl-item"><span>${weather}</span></div>`;
+  if(weather) html+=`<div class="wl-item"><span>${esc(weather)}</span></div>`;
   if(weather&&(location||locationDenied||!location)) html+=`<span class="wl-divider"></span>`;
   if(location){
     html+=`<div class="wl-item">
       <div class="location-wrap" id="loc-wrap" onclick="editLocation()">
         ${PIN_SVG}
-        <span id="loc-text">${location}</span>
+        <span id="loc-text">${esc(location)}</span>
         <span class="location-edit-hint">✎</span>
       </div>
     </div>`;
@@ -2046,7 +2069,7 @@ function editLocationEmpty(){
       // 只替換地點元素，不重繪整列（避免天氣消失）
       const locItem=inp.closest('.wl-item');
       if(locItem){
-        locItem.innerHTML='<div class="location-wrap" id="loc-wrap" onclick="editLocation()">'+PIN_SVG+'<span id="loc-text">'+val+'</span><span class="location-edit-hint">✎</span></div>';
+        locItem.innerHTML='<div class="location-wrap" id="loc-wrap" onclick="editLocation()">'+PIN_SVG+'<span id="loc-text">'+esc(val)+'</span><span class="location-edit-hint">✎</span></div>';
       }
     } else {
       // 沒輸入，還原提示文字
@@ -2110,13 +2133,13 @@ function renderOtd(){
   if(!past.length||!eb)return;
   const items=past.map(ds=>{
     const e=entries[ds];
-    const title=e.title||(getPlain(e.content)||e.preview||'').slice(0,40)||'（無內容）';
-    const plain=getPlain(e.content)||e.preview||'';
+    const title=e.title||plainOf(e).slice(0,40)||'（無內容）';
+    const plain=plainOf(e);
     const preview=plain.slice(0,80);
     return `<div class="otd-item">
       <div class="otd-year">${ds.slice(0,4)} 年</div>
-      <div class="otd-title">${title}</div>
-      ${preview?`<div class="otd-preview">${preview}${plain.length>80?'…':''}</div>`:''}
+      <div class="otd-title">${esc(title)}</div>
+      ${preview?`<div class="otd-preview">${esc(preview)}${plain.length>80?'…':''}</div>`:''}
       <button class="otd-read" onclick="openEntry('${ds}')">閱讀全文 →</button>
     </div>`;
   }).join('');
@@ -2191,7 +2214,8 @@ function renderAISummaryTags(tags, suggestedTags){
   confirmed.forEach(t=>{
     const chip=document.createElement('span');
     chip.className='tag-chip';
-    chip.innerHTML=`${t} <span style="opacity:0.6;">×</span>`;
+    chip.textContent=t+' ';
+    const cx=document.createElement('span');cx.style.opacity='0.6';cx.textContent='×';chip.appendChild(cx);
     chip.onclick=()=>removeTag(t);
     bar.appendChild(chip);
   });
@@ -2346,6 +2370,8 @@ function confirmNewTag(){
   const inp=document.getElementById('tag-new-input');
   const t=inp?.value?.trim();
   if(!t)return;
+  const err=tagNameError(t);  // v47
+  if(err){alert(err);inp.focus();return;}
   const old=document.getElementById('tag-picker');if(old)old.remove();
   ensureLocalEntry(currentDate);  // v45
   if(!(entries[currentDate].tags||[]).includes(t)){
@@ -2457,7 +2483,8 @@ async function analyzeMood(){
   }
   if(Array.isArray(parsed.tags)&&parsed.tags.length){
     const ex=entries[ds].tags||[];
-    const newSuggested=parsed.tags.filter(t=>typeof t==='string'&&t.trim()&&!ex.includes(t)).slice(0,3);
+    // v47：AI 建議的標籤若含逗號，改成頓號（逗號會讓 .md 的標籤被拆開）
+    const newSuggested=parsed.tags.filter(t=>typeof t==='string'&&t.trim()).map(t=>t.trim().replace(/[,，]/g,'、')).filter(t=>!ex.includes(t)).slice(0,3);
     if(newSuggested.length){
       pendingSuggestedTags[ds]=newSuggested;
       if(currentDate===ds)renderTagsRow(entries[ds].tags||[], newSuggested);
@@ -2637,7 +2664,7 @@ function renderTagsPage(){
     return;
   }
   fb.innerHTML=`<button class="tag-filter-all ${activeFilterTag===null?'active':''}" onclick="filterByTag(null)">全部</button>`
-    +allTags.map(t=>`<button class="tag-filter-chip ${activeFilterTag===t?'active':''}" onclick="filterByTag('${t}')">${t} <span style="opacity:0.6;">${tagMap[t]}</span></button>`).join('');
+    +allTags.map(t=>`<button class="tag-filter-chip ${activeFilterTag===t?'active':''}" data-tag="${esc(t)}" onclick="filterByTag(this.dataset.tag)">${esc(t)} <span style="opacity:0.6;">${tagMap[t]}</span></button>`).join('');
 
   // 標籤管理列表
   const container=document.getElementById('tag-filtered-list');
@@ -2645,27 +2672,18 @@ function renderTagsPage(){
     // 篩選後顯示日記列表
     const matched=Object.keys(entries).filter(ds=>(entries[ds].tags||[]).includes(activeFilterTag)).sort((a,b)=>b.localeCompare(a));
     if(!matched.length){container.innerHTML='<div style="padding:20px 16px;font-size:var(--fs-btn);color:var(--text-muted);">沒有符合的日記</div>';return;}
-    let html='<div style="padding:8px 16px 4px;font-size:var(--fs-small);color:var(--text-muted);">共 '+matched.length+' 篇日記</div>';
-    matched.forEach(ds=>{
-      const e=entries[ds],plain=getPlain(e.content)||e.preview||'';
-      html+=`<div class="list-card" onclick="openEntry('${ds}')">
-        <div class="list-card-left"><div class="list-card-dow">${fmtDow(ds)}</div><div class="list-card-day">${parseInt(ds.slice(8))}</div></div>
-        <div class="list-card-body">
-          ${e.title?`<div class="list-card-title">${e.title}</div>`:''}
-          ${plain?`<div class="list-card-preview">${plain.slice(0,100)}</div>`:''}
-        </div>
-      </div>`;
-    });
-    container.innerHTML=html;
+    // v47：和主列表同一種卡片（含天氣、心情、標籤列）
+    container.innerHTML='<div style="padding:8px 16px 4px;font-size:var(--fs-small);color:var(--text-muted);">共 '+matched.length+' 篇日記</div>'
+      +'<div class="list-cards-wrap">'+matched.map(ds=>renderCard(ds)).join('')+'</div>';
   } else {
     // 全部標籤的管理介面
     let html='<div class="tag-mgmt-list">';
     allTags.forEach(t=>{
       html+=`<div class="tag-mgmt-item">
-        <span class="tag-mgmt-name">${t}</span>
+        <span class="tag-mgmt-name">${esc(t)}</span>
         <span class="tag-mgmt-count">${tagMap[t]} 篇</span>
-        <button class="tag-mgmt-rename" onclick="renameTag('${t}')">重新命名</button>
-        <button class="tag-mgmt-del" onclick="deleteTag('${t}')">✕</button>
+        <button class="tag-mgmt-rename" data-tag="${esc(t)}" onclick="renameTag(this.dataset.tag)">重新命名</button>
+        <button class="tag-mgmt-del" data-tag="${esc(t)}" onclick="deleteTag(this.dataset.tag)">✕</button>
       </div>`;
     });
     html+='</div>';
@@ -2720,6 +2738,8 @@ async function renameTag(oldName){
   const newName=prompt('重新命名標籤：', oldName);
   if(!newName||!newName.trim()||newName.trim()===oldName)return;
   const n=newName.trim();
+  const nameErr=tagNameError(n);  // v47
+  if(nameErr){alert(nameErr);return;}
   // 檢查目標名稱是否已存在
   const allTags=new Set();
   Object.values(entries).forEach(e=>(e.tags||[]).forEach(t=>allTags.add(t)));
@@ -2862,22 +2882,6 @@ function applyLineHeight(lh){
   document.querySelectorAll('.ql-editor').forEach(el=>el.style.lineHeight=val);
 }
 
-// ── 暫時除錯用：匯出目前 localStorage 裡的 index 快取原始 JSON ──
-// 用途：index.json 曾被寫壞成空檔，用來搶救各裝置上還留著的 index 快取。
-// 救援完成後可移除此函式與對應按鈕。
-function exportIndexJSON(){
-  const cached=lsGet(INDEX_CACHE_KEY);
-  const data=cached||JSON.stringify(entries);
-  const count=Object.keys(JSON.parse(data)||{}).length;
-  if(!confirm(`即將匯出目前快取中的 ${count} 篇日記索引，確定嗎？`))return;
-  const blob=new Blob([data],{type:'application/json'});
-  const a=document.createElement('a');
-  const platform=isMobileDevice()?'mobile':'desktop';
-  a.href=URL.createObjectURL(blob);
-  a.download=`memoire-index-backup-${platform}-${new Date().toISOString().slice(0,10)}.json`;
-  a.click();
-  URL.revokeObjectURL(a.href);
-}
 
 // ── 備份還原 ──
 function closeBackupModal(){
@@ -2916,7 +2920,7 @@ async function openBackupModal(){
         <button onclick="doRestoreBackup('${d}')" style="background:var(--accent);color:#fff;border:none;border-radius:5px;padding:4px 10px;font-size:var(--fs-small);cursor:pointer;">還原</button>
       </div>`).join('');
   }catch(e){
-    document.getElementById('backup-list').innerHTML=`<div style="font-size:var(--fs-btn);color:var(--text-muted);text-align:center;padding:20px 0;">讀取失敗：${e.message}</div>`;
+    document.getElementById('backup-list').innerHTML=`<div style="font-size:var(--fs-btn);color:var(--text-muted);text-align:center;padding:20px 0;">讀取失敗：${esc(e.message)}</div>`;
   }
 }
 
@@ -2932,30 +2936,10 @@ async function doRestoreBackup(date){
     lsDel(INDEX_CACHE_KEY);
     await loadEntries();
   }catch(e){
-    listEl.innerHTML=`<div style="font-size:var(--fs-btn);color:var(--text-muted);text-align:center;padding:20px 0;">還原失敗：${e.message}</div>`;
+    listEl.innerHTML=`<div style="font-size:var(--fs-btn);color:var(--text-muted);text-align:center;padding:20px 0;">還原失敗：${esc(e.message)}</div>`;
   }
 }
 
-function exportEntries(){
-  const sorted=Object.keys(entries).sort();
-  if(!sorted.length){alert('沒有可匯出的日記');return;}
-  let md='';
-  sorted.forEach(ds=>{
-    const e=entries[ds];
-    md+=`# ${e.title||ds}\n`;
-    md+=`Date: ${ds}\n`;
-    if(e.tags&&e.tags.length)md+=`Tags: ${e.tags.join(', ')}\n`;
-    if(e.mood)md+=`Mood: ${e.mood}\n`;
-    md+='\n';
-    md+=getPlain(e.content||'')+'\n\n---\n\n';
-  });
-  const blob=new Blob([md],{type:'text/markdown'});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download='memoire-export.md';
-  a.click();
-  URL.revokeObjectURL(a.href);
-}
 
 // ── 搜尋 ──
 let currentSearch=null;
@@ -2996,7 +2980,7 @@ function _showSearchResults(q){
     const e=entries[ds];
     const haystack=[
       e.title||'',
-      getPlain(e.content||''),
+      plainOf(e),
       (e.tags||[]).join(' ')
     ].join(' ').toLowerCase();
     return keywords.every(k=>haystack.includes(k));
@@ -3006,53 +2990,11 @@ function _showSearchResults(q){
   countEl.textContent=matched.length+' 篇';
 
   if(!matched.length){
-    page.innerHTML=`<div class="list-empty"><div style="font-size:32px;opacity:0.3;">🔍</div><div style="font-size:var(--fs-btn);">找不到符合「${q}」的日記</div></div>`;
+    page.innerHTML=`<div class="list-empty"><div style="font-size:32px;opacity:0.3;">🔍</div><div style="font-size:var(--fs-btn);">找不到符合「${esc(q)}」的日記</div></div>`;
     return;
   }
 
-  // 高亮函式
-  function highlight(text){
-    if(!text)return '';
-    let result=text;
-    keywords.forEach(k=>{
-      const re=new RegExp(k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi');
-      result=result.replace(re,m=>`<span class="search-highlight">${m}</span>`);
-    });
-    return result;
-  }
-
-  const groups={};
-  matched.forEach(ds=>{const g=fmtMG(ds);if(!groups[g])groups[g]=[];groups[g].push(ds);});
-  let html=`<div class="search-result-count">找到 ${matched.length} 篇日記</div>`;
-  Object.keys(groups).forEach(g=>{
-    html+=`<div class="list-month-group"><div class="list-month-label">${g}</div><div class="list-cards-wrap">`;
-    groups[g].forEach(ds=>{
-      const e=entries[ds];
-      const plain=getPlain(e.content||'');
-      const hasTitle=!!(e.title&&e.title.trim());
-      const tags=(e.tags||[]).map(t=>`<span class="list-card-tag">${highlight(t)}</span>`).join('');
-      const metaParts=[];
-      if(e.weather)metaParts.push(`<span class="lc-meta-item">${e.weather}</span>`);
-      if(e.location)metaParts.push(`<span class="lc-meta-item">${e.location}</span>`);
-      if(e.mood)metaParts.push(`<span class="lc-meta-item">${e.mood}</span>`);
-      const metaHtml=metaParts.join('<span class="lc-meta-dot">·</span>');
-      const bottomRow=(metaHtml?(metaHtml+(tags?'<span class="lc-meta-dot">·</span>'+tags:'')):(tags||''));
-      html+=`<div class="list-card" onclick="openEntry('${ds}')">
-        <div class="list-card-left">
-          <div class="list-card-dow">${fmtDow(ds)}</div>
-          <div class="list-card-day">${parseInt(ds.slice(8))}</div>
-        </div>
-        <div class="list-card-divider"></div>
-        <div class="list-card-body">
-          ${hasTitle?`<div class="list-card-title">${highlight(e.title)}</div>`:''}
-          ${plain?`<div class="list-card-preview">${highlight(plain.slice(0,120))}</div>`:(hasTitle?'':`<div class="list-card-preview" style="opacity:0.4;">（無內容）</div>`)}
-          ${bottomRow?`<div class="list-card-tags">${bottomRow}</div>`:''}
-        </div>
-      </div>`;
-    });
-    html+=`</div></div>`;
-  });
-  page.innerHTML=html;
+  page.innerHTML=`<div class="search-result-count">找到 ${matched.length} 篇日記</div>`+renderCardGroups(matched,{keywords});
 }
 
 async function clearSearch(){
@@ -3107,39 +3049,7 @@ function _showOtdPage(){
     return;
   }
 
-  const groups={};
-  matched.forEach(ds=>{const g=fmtMG(ds);if(!groups[g])groups[g]=[];groups[g].push(ds);});
-  let html=`<div class="search-result-count">共 ${matched.length} 篇</div>`;
-  Object.keys(groups).forEach(g=>{
-    html+=`<div class="list-month-group"><div class="list-month-label">${g}</div><div class="list-cards-wrap">`;
-    groups[g].forEach(ds=>{
-      const e=entries[ds];
-      const plain=getPlain(e.content||'');
-      const hasTitle=!!(e.title&&e.title.trim());
-      const tags=(e.tags||[]).map(t=>`<span class="list-card-tag" onclick="event.stopPropagation();jumpToTag('${t}')">${t}</span>`).join('');
-      const metaParts=[];
-      if(e.weather)metaParts.push(`<span class="lc-meta-item">${e.weather}</span>`);
-      if(e.location)metaParts.push(`<span class="lc-meta-item">${e.location}</span>`);
-      if(e.mood)metaParts.push(`<span class="lc-meta-item">${e.mood}</span>`);
-      const metaHtml=metaParts.join('<span class="lc-meta-dot">·</span>');
-      const bottomRow=metaHtml?(metaHtml+(tags?'<span class="lc-meta-dot">·</span>'+tags:'')):(tags||'');
-      html+=`<div class="list-card" onclick="openEntry('${ds}')">
-        <div class="list-card-left">
-          <div class="list-card-dow">${fmtDow(ds)}</div>
-          <div class="list-card-day">${parseInt(ds.slice(8))}</div>
-        </div>
-        <div class="list-card-divider"></div>
-        <div class="list-card-body">
-          <div style="font-size:var(--fs-small);color:var(--accent-light);margin-bottom:3px;font-weight:500;">${ds.slice(0,4)} 年</div>
-          ${hasTitle?`<div class="list-card-title">${e.title}</div>`:''}
-          ${plain?`<div class="list-card-preview">${plain.slice(0,120)}</div>`:(hasTitle?'':`<div class="list-card-preview" style="opacity:0.4;">（無內容）</div>`)}
-          ${bottomRow?`<div class="list-card-tags">${bottomRow}</div>`:''}
-        </div>
-      </div>`;
-    });
-    html+=`</div></div>`;
-  });
-  page.innerHTML=html;
+  page.innerHTML=`<div class="search-result-count">共 ${matched.length} 篇</div>`+renderCardGroups(matched,{showYear:true});
 }
 
 // ── 手機版搜尋 ──
