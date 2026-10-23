@@ -674,21 +674,15 @@ const SECRET_KEY = 'memoire_v10_secret';
 function getSecret(){try{return localStorage.getItem(SECRET_KEY)||'';}catch(e){return '';}}
 
 // 實際送出請求（secret 由呼叫端指定，解鎖頁驗證時會帶入「尚未存檔」的候選暗號）
+// v48：所有請求一律走 text/plain POST，暗號和資料都放在請求內容裡，網址上不再出現暗號
+//      （text/plain 是「簡單請求」，不觸發 CORS preflight，也沒有網址長度限制）
+//      需要 GAS v5 以上；舊版 GAS 會回 unauthorized，所以部署時一定要「GAS 先、前端後」
 async function rawCallGAS(secret, action, extra={}) {
-  const s = encodeURIComponent(secret);
-  // writeEntry / gemini 內容可能很長，走 text/plain POST（簡單請求，不觸發 CORS preflight，也沒有網址長度限制；v43 加入 gemini）
-  if (action === 'writeEntry' || action === 'gemini' || action === 'saveEntry' || action === 'updateMetaBatch') {  // v46 加入 saveEntry／updateMetaBatch
-    const url = `${GAS_URL}?secret=${s}`;
-    const r = await fetch(url, {
-      method: 'POST',
-      headers: {'Content-Type': 'text/plain;charset=utf-8'},
-      body: JSON.stringify({action, data: extra})
-    });
-    return r.json();
-  }
-  const data = encodeURIComponent(JSON.stringify(extra));
-  const url = `${GAS_URL}?secret=${s}&action=${action}&data=${data}`;
-  const r = await fetch(url);
+  const r = await fetch(GAS_URL, {
+    method: 'POST',
+    headers: {'Content-Type': 'text/plain;charset=utf-8'},
+    body: JSON.stringify({secret, action, data: extra})
+  });
   return r.json();
 }
 
@@ -702,7 +696,7 @@ async function callGAS(action, extra={}) {
 }
 
 const TK='memoire_v10_theme';
-const APP_VERSION='v47';  // 主程式版本號（v45 起 sw.js 改為 network-first，不必再同步改 CACHE_NAME）
+const APP_VERSION='v48';  // 主程式版本號（v45 起 sw.js 改為 network-first，不必再同步改 CACHE_NAME）
 console.log('[Memoire] '+APP_VERSION);
 document.addEventListener('DOMContentLoaded',()=>{
   const el=document.getElementById('app-version-label');
