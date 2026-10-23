@@ -112,6 +112,8 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
 .leave-confirm-btn-stay:hover{opacity:0.88;}
 .leave-confirm-btn-leave{background:none;border:1px solid var(--border);color:var(--text-body);}
 .leave-confirm-btn-leave:hover{border-color:var(--accent-light);color:var(--text-title);}
+/* ── 標籤批次處理進度（v46）── */
+.tag-progress{padding:8px 16px;font-size:var(--fs-small);color:var(--accent-light);background:var(--card-bg);border-bottom:1px solid var(--border);}
 /* ── 其他裝置修改提示（v44）── */
 .editor-toast-wrap{display:flex;justify-content:center;padding:8px 14px 0;flex-shrink:0;}
 .editor-toast{display:inline-flex;align-items:center;gap:6px;background:var(--card-bg);border:1px solid var(--accent);border-radius:16px;padding:5px 14px;font-size:var(--fs-small);color:var(--text-body);animation:fadeIn 0.25s;}
@@ -562,6 +564,7 @@ body{font-family:'Microsoft JhengHei','PingFang TC','Noto Sans TC',sans-serif;ba
         <button class="back-btn" onclick="showListPage()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg> 返回</button>
         
       </div>
+      <div id="tag-progress" class="tag-progress" style="display:none;"></div>
       <div class="tag-filter-bar" id="tag-filter-bar"></div>
       <div id="tag-filtered-list"></div>
     </div>
@@ -682,7 +685,7 @@ function getSecret(){try{return localStorage.getItem(SECRET_KEY)||'';}catch(e){r
 async function rawCallGAS(secret, action, extra={}) {
   const s = encodeURIComponent(secret);
   // writeEntry / gemini 內容可能很長，走 text/plain POST（簡單請求，不觸發 CORS preflight，也沒有網址長度限制；v43 加入 gemini）
-  if (action === 'writeEntry' || action === 'gemini') {
+  if (action === 'writeEntry' || action === 'gemini' || action === 'saveEntry' || action === 'updateMetaBatch') {  // v46 加入 saveEntry／updateMetaBatch
     const url = `${GAS_URL}?secret=${s}`;
     const r = await fetch(url, {
       method: 'POST',
@@ -707,7 +710,7 @@ async function callGAS(action, extra={}) {
 }
 
 const TK='memoire_v10_theme';
-const APP_VERSION='v45.1';  // 主程式版本號（v45 起 sw.js 改為 network-first，不必再同步改 CACHE_NAME）
+const APP_VERSION='v46';  // 主程式版本號（v45 起 sw.js 改為 network-first，不必再同步改 CACHE_NAME）
 console.log('[Memoire] '+APP_VERSION);
 document.addEventListener('DOMContentLoaded',()=>{
   const el=document.getElementById('app-version-label');
@@ -881,9 +884,10 @@ function handleRemoteChangeForCurrent(ds,remote){
   if(conflictState&&conflictState.ds===ds){conflictState.remote=remote;return;}
   if(entries[ds]&&entries[ds]._loadFailed){reloadFromCloud(ds,remote,null);return;}
   if(isEntryDirty(ds)){
-    conflictState={ds,remote};
-    renderConflictBanner();
-    setSaveStatus('paused');
+    flushCurrentToMemory();
+    if(entries[ds])lsSet(CACHE_PREFIX+ds,entries[ds].content||'');  // v46：先存本機
+    saveIndexCache();
+    handleSaveConflict(ds,remote);
   } else {
     reloadFromCloud(ds,remote,'已載入其他裝置的修改');
   }
@@ -939,7 +943,8 @@ async function resolveConflictKeepMine(){
   if(!conflictState)return;
   const {ds,remote}=conflictState;
   clearConflict(ds);
-  if(entries[ds])entries[ds].updatedAt=remote.updatedAt;
+  removeSyncPending(ds,'conflict');  // v46
+  if(entries[ds])entries[ds].updatedAt=remote?remote.updatedAt:'';  // 雲端已被刪除時以「全新日記」存回
   if(currentDate===ds){setSaveStatus('saving');await doSave();}
   else persistEntry(ds);
 }
@@ -952,7 +957,7 @@ function resolveConflictLoadCloud(){
   overlay.id='conflict-confirm-overlay';
   overlay.innerHTML=`<div class="leave-confirm-box">
     <div class="leave-confirm-title">捨棄這台裝置的修改？</div>
-    <div class="leave-confirm-desc">會改為顯示雲端上的版本，你剛才在這台裝置打的內容將無法復原。</div>
+    <div class="leave-confirm-desc">${conflictState&&!conflictState.remote?'這篇已在其他裝置刪除。確定後會從這台裝置移除，你在這台裝置的內容將無法復原。':'會改為顯示雲端上的版本，你剛才在這台裝置打的內容將無法復原。'}</div>
     <div class="leave-confirm-actions">
       <button class="leave-confirm-btn-leave" onclick="closeConflictConfirm()">取消</button>
       <button class="leave-confirm-btn-stay" onclick="confirmLoadCloud()">捨棄並載入</button>
@@ -966,6 +971,16 @@ async function confirmLoadCloud(){
   if(!conflictState)return;
   const {ds,remote}=conflictState;
   clearConflict(ds);
+  removeSyncPending(ds,'conflict');  // v46
+  if(!remote){
+    // 這篇已在其他裝置刪除：照雲端狀態移除
+    delete entries[ds];
+    delContentCache(ds);
+    saveIndexCache();
+    currentDate=null;
+    _showListPage();
+    return;
+  }
   await reloadFromCloud(ds,remote,'已載入雲端版本');
 }
 
@@ -976,15 +991,18 @@ function saveNowOnHide(){
   const ds=currentDate;
   if(!ds||!entries[ds]&&!quill)return;
   if(document.getElementById('editor-page').style.display==='none')return;
-  if(conflictState&&conflictState.ds===ds)return;
   if(entries[ds]&&entries[ds]._loadFailed)return;
+  if(conflictState&&conflictState.ds===ds){  // v46：衝突期間不存雲端，但先存本機
+    clearTimeout(autoSaveTimer);flushCurrentToMemory();
+    if(entries[ds])lsSet(CACHE_PREFIX+ds,entries[ds].content||'');
+    saveIndexCache();
+    return;
+  }
   clearTimeout(autoSaveTimer);
   flushCurrentToMemory();
   if(isEntryBlank(ds)){setSaveStatus('');return;}
   if(!isEntryDirty(ds))return;
-  persistEntry(ds).then(()=>{
-    if(currentDate===ds){setSaveStatus('saved');renderEntryList();setTimeout(()=>setSaveStatus(''),2500);}
-  });
+  persistEntry(ds).then(()=>showSaveResult(ds));  // v46
 }
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')saveNowOnHide();});
 window.addEventListener('pagehide',saveNowOnHide);
@@ -1138,14 +1156,16 @@ function unmarkSaving(ds){lsSet(SAVING_KEY,JSON.stringify(getSaving().filter(d=>
 
 function getSyncPending(){try{return JSON.parse(lsGet(SYNC_PENDING_KEY)||'[]');}catch(e){return [];}}
 function setSyncPending(list){lsSet(SYNC_PENDING_KEY,JSON.stringify(list));}
-function addSyncPending(date,type){
+// type：'md'（雲端存檔失敗，可重試）／'conflict'（v46：雲端已被其他裝置修改，需要使用者選擇保留哪個版本；remote = 雲端當時的資料）
+function addSyncPending(date,type,remote){
   const list=getSyncPending();
-  if(!list.some(i=>i.date===date&&i.type===type)){
-    list.push({date,type,failedAt:Date.now()});
-    setSyncPending(list);
-  }
+  const ex=list.find(i=>i.date===date&&i.type===type);
+  if(ex){if(remote!==undefined)ex.remote=remote;}
+  else list.push({date,type,failedAt:Date.now(),remote:remote===undefined?undefined:remote});
+  setSyncPending(list);
   renderSyncUI();
 }
+function getPendingConflict(ds){return getSyncPending().find(i=>i.date===ds&&i.type==='conflict')||null;}
 function removeSyncPending(date,type){
   const list=getSyncPending().filter(i=>!(i.date===date&&i.type===type));
   setSyncPending(list);
@@ -1163,11 +1183,26 @@ function renderSyncUI(){
 function renderSyncBanner(){
   const mount=document.getElementById('sync-banner-mount');
   if(!mount)return;
-  const list=getSyncPending();
+  // 正在編輯的那篇若是衝突，編輯器裡已有衝突 banner，上方不重複顯示
+  const list=getSyncPending().filter(i=>!(i.type==='conflict'&&i.date===currentDate));
   if(!list.length){mount.innerHTML='';return;}
-  // 只顯示最近一筆失敗的，避免同時堆疊多條 banner；其餘篇目由卡片小標記與設定頁清單涵蓋
+  // 只顯示最近一筆，避免同時堆疊多條 banner；其餘篇目由卡片小標記與設定頁清單涵蓋
   const item=list[list.length-1];
   const md=item.date.slice(5,7)+'/'+item.date.slice(8,10);
+  if(item.type==='conflict'){
+    mount.innerHTML=`<div class="sync-banner">
+    <div class="sync-banner-icon">⚠️</div>
+    <div class="sync-banner-body">
+      <div class="sync-banner-title">${md} 的日記在其他裝置也被修改過</div>
+      <div class="sync-banner-desc">這台裝置的修改還沒存進雲端（內容保留在這台裝置）。打開這篇，選擇要保留哪個版本。</div>
+      <div class="sync-banner-actions">
+        <button class="sync-btn-primary" onclick="openEntry('${item.date}')">打開處理</button>
+        <button class="sync-btn-secondary" onclick="dismissSyncBanner()">知道了，稍後處理</button>
+      </div>
+    </div>
+  </div>`;
+    return;
+  }
   mount.innerHTML=`<div class="sync-banner">
     <div class="sync-banner-icon">⚠️</div>
     <div class="sync-banner-body">
@@ -1192,7 +1227,11 @@ function renderSyncPendingSettings(){
   const list=getSyncPending();
   if(!list.length){row.style.display='none';listEl.innerHTML='';return;}
   row.style.display='flex';
-  listEl.innerHTML=list.map(i=>`
+  listEl.innerHTML=list.map(i=>i.type==='conflict'?`
+    <div class="sync-settings-item">
+      <span class="sync-settings-item-label">${i.date}（其他裝置也修改過）</span>
+      <button class="settings-action-btn" onclick="openEntry('${i.date}')">打開處理</button>
+    </div>`:`
     <div class="sync-settings-item">
       <span class="sync-settings-item-label">${i.date}（${i.type==='md'?'內容':'索引'}）</span>
       <button class="settings-action-btn" onclick="retrySync('${i.date}')">重試</button>
@@ -1202,13 +1241,14 @@ function renderSyncPendingSettings(){
 // 手動重試：確保內容已載入記憶體後，重新跑一次完整 persistEntry（md → index）
 async function retrySync(ds){
   if(!entries[ds])return;
+  if(getPendingConflict(ds)){openEntry(ds);return;}  // v46：衝突不能直接重試，要打開讓使用者選擇
   if(!entries[ds].content){
     entries[ds].content=await loadEntryContent(ds);
   }
   await persistEntry(ds);
 }
 async function retryAllSyncPending(){
-  const dates=[...new Set(getSyncPending().map(i=>i.date))];
+  const dates=[...new Set(getSyncPending().filter(i=>i.type==='md').map(i=>i.date))];  // v46：衝突項目不自動重試
   for(const ds of dates){await retrySync(ds);}
 }
 
@@ -1239,28 +1279,54 @@ function resolveLeaveConfirm(leave){
   if(_leaveConfirmResolver){_leaveConfirmResolver(leave);_leaveConfirmResolver=null;}
 }
 
-// md 寫入＋重試（固定間隔 3 秒，最多重試 2 次）；成功/最終失敗都會同步更新 mdSyncState 與 syncPending
-async function persistMdWithRetry(ds,fullContent){
+// v46：存檔（.md＋index 由 GAS 在同一把鎖裡寫入）＋重試（固定間隔 3 秒，最多重試 2 次）
+// 回傳 {ok, updatedAt}／{conflict, remote}／{failed}
+// 重試時帶同一個 saveId：雲端其實已經存好、只是沒收到回應時，GAS 會當成成功，不會誤判為衝突
+async function persistSaveWithRetry(ds,payload){
   for(let attempt=0;attempt<=2;attempt++){
     if(attempt>0){
       mdSyncState[ds]='retrying';
       renderSyncUI();
       await sleep(3000);
     }
-    let ok=false;
-    try{
-      const res=await callGAS('writeEntry',{date:ds,content:fullContent});
-      ok=!!(res&&res.ok);
-    }catch(e){ok=false;}
-    if(ok){
+    let res=null;
+    try{res=await callGAS('saveEntry',payload);}catch(e){res=null;}
+    if(res&&res.ok){
       delete mdSyncState[ds];
       removeSyncPending(ds,'md');
-      return true;
+      return {ok:true,updatedAt:res.updatedAt};
+    }
+    if(res&&res.conflict){
+      delete mdSyncState[ds];
+      removeSyncPending(ds,'md');
+      return {conflict:true,remote:res.remote||null};
     }
   }
   mdSyncState[ds]='failed';
   addSyncPending(ds,'md');
-  return false;
+  return {failed:true};
+}
+
+// v46：存檔時 GAS 回報「雲端已被其他裝置修改」
+// 本機內容已在存檔一開始寫進快取；記成待同步「衝突」保護它不被雲端覆蓋，並請使用者選擇保留哪個版本
+function handleSaveConflict(ds,remote){
+  addSyncPending(ds,'conflict',remote);
+  if(currentDate===ds){
+    conflictState={ds,remote};
+    renderConflictBanner();
+    setSaveStatus('paused');
+    renderSyncBanner();
+  }
+}
+
+// 打開一篇有待處理衝突的日記時，顯示衝突 banner
+function showPendingConflict(ds){
+  const pc=getPendingConflict(ds);
+  if(!pc||currentDate!==ds)return;
+  conflictState={ds,remote:pc.remote||null};
+  renderConflictBanner();
+  setSaveStatus('paused');
+  renderSyncBanner();
 }
 
 // 2. 把 entries[ds] 寫進 localStorage + GAS（純 async，完全不碰 DOM 或全域 currentDate）
@@ -1300,28 +1366,40 @@ async function persistEntryOnce(ds){
   };
   const content=e.content||'';
   const fullContent=buildFrontMatter(meta)+'\n\n'+content;
-  const newVer=Date.now();  // v44：這次存檔的版本號
+  const indexEntry=buildIndexEntry(ds);
+  delete indexEntry.updatedAt;  // v46：版本號由 GAS 產生
+  const saveId=Date.now().toString(36)+Math.random().toString(36).slice(2,8);
   // v45：先寫本機（版本號維持舊的）＋記「存檔中」，App 在送雲端途中被關掉也不會遺失
   lsSet(CACHE_PREFIX+ds,content);
   markSaving(ds);
-  const mdOk=await persistMdWithRetry(ds,fullContent);
-  unmarkSaving(ds);  // 成功 → 不再需要；失敗 → persistMdWithRetry 已轉成待同步
-  if(!mdOk){
-    // md 沒同步成功：不更新 dirty 快照基準，讓下次離開這篇時仍判定為 dirty、有機會再次觸發存檔
+  const result=await persistSaveWithRetry(ds,{date:ds,content:fullContent,entry:indexEntry,baseVersion:verStr(e.updatedAt),saveId});
+  unmarkSaving(ds);  // 成功 → 不再需要；失敗 → 已轉成待同步；衝突 → 下一行轉成衝突
+  if(result.conflict){handleSaveConflict(ds,result.remote);return;}
+  if(!result.ok){
+    // 沒同步成功：不更新 dirty 快照基準，讓下次離開這篇時仍判定為 dirty、有機會再次觸發存檔
     return;
   }
   if(!entries[ds])return;  // 存檔期間這篇被刪除
-  // md 成功：記憶體、本機快取、index 三處都換成新版本號（先更新記憶體再送 index，背景更新比對時才不會誤判）
-  e.updatedAt=newVer;
-  e._cver=newVer;
+  // 成功：記憶體、本機快取換成 GAS 回傳的新版本號（index 已由 GAS 在同一次請求寫好）
+  e.updatedAt=result.updatedAt;
+  e._cver=result.updatedAt;
   delete e._isNew;  // v45：已存進雲端
-  setContentCache(ds,content,newVer);
+  delete e._pendingMeta;
+  setContentCache(ds,content,result.updatedAt);
   if(e.content!==content)lsSet(CACHE_PREFIX+ds,e.content||'');  // 存檔期間又有新修改：本機快取保留最新內容（下一輪會再存）
-  callGAS('writeIndex',{date:ds,entry:buildIndexEntry(ds)});
   saveIndexCache();
   // 只在還停留在同一篇、且畫面內容就是剛存進去的內容時更新基準（v45：存檔期間又打字的話保持 dirty，離開時才會再存）
   const savedSnap=JSON.stringify({title:meta.title,content,tags:meta.tags,mood:meta.mood,weather:meta.weather,location:meta.location});
   if(currentDate===ds&&fieldsSnapshot(ds)===savedSnap){entrySnapshotDate=ds;entrySnapshot=savedSnap;}
+}
+
+// v46：存檔結束後依實際結果顯示狀態（衝突 → 暫停存檔；失敗 → 清空，由待同步 banner 說明；成功才顯示「已儲存」）
+function showSaveResult(ds){
+  if(currentDate!==ds)return;
+  if(conflictState&&conflictState.ds===ds){setSaveStatus('paused');return;}
+  if(mdSyncState[ds]){setSaveStatus('');return;}
+  setSaveStatus('saved');renderEntryList();renderCal();
+  setTimeout(()=>{const el=document.getElementById('save-status');if(el&&el.textContent==='已儲存')setSaveStatus('');},2500);
 }
 
 function isEntryBlank(ds){
@@ -1472,7 +1550,10 @@ function renderListPage(){
       if(e.mood)metaParts.push(`<span class="lc-meta-item">${e.mood}</span>`);
       const metaHtml=metaParts.length?metaParts.join('<span class="lc-meta-dot">·</span>')+( tags?'<span class="lc-meta-dot">·</span>'+tags:''):'';
       const bottomRow=metaHtml||(tags?tags:'');
-      const syncBadge=getSyncPending().some(i=>i.date===ds&&i.type==='md')
+      const conflictItem=getSyncPending().some(i=>i.date===ds&&i.type==='conflict');
+      const syncBadge=conflictItem
+        ?`<span class="sync-badge" title="其他裝置也修改過這篇，點擊打開處理" onclick="event.stopPropagation();openEntry('${ds}')"><span class="sync-badge-dot"></span>衝突</span>`
+        :getSyncPending().some(i=>i.date===ds&&i.type==='md')
         ?`<span class="sync-badge" title="點擊查看同步狀態" onclick="event.stopPropagation();retrySync('${ds}')"><span class="sync-badge-dot"></span>未同步</span>`
         :'';
       html+=`<div class="list-card" onclick="openEntry('${ds}')">
@@ -1538,6 +1619,13 @@ async function leaveCurrentEntry(){
     return true;
   }
   flushCurrentToMemory();
+  if(getPendingConflict(ds)){  // v46：衝突還沒處理：內容留在本機，不刪除也不送雲端
+    if(entries[ds])lsSet(CACHE_PREFIX+ds,entries[ds].content||'');
+    saveIndexCache();
+    currentDate=null;
+    renderSyncUI();
+    return true;
+  }
   currentDate=null;
   if(isEntryBlank(ds)){
     // 標題和內文都空：刪除（還沒存進雲端過的新日記只刪本機，不送刪除請求）
@@ -1595,10 +1683,14 @@ async function openEntry(ds){
       overlay.remove();
       captureSnapshot(ds);  // 內容補齊後才拍快照，避免誤判成內文變動（v40）
       updateWordCount();    // v44：懶載入後重算字數（原本會顯示 0 字）
+      showPendingConflict(ds);  // v46
+      flushPendingMeta(ds);     // v46
     }
   } else {
     showEditorPage();buildEditor(entries[ds]||{});
     captureSnapshot(ds);  // v40
+    showPendingConflict(ds);  // v46
+    flushPendingMeta(ds);     // v46
   }
   renderCal();renderEntryList();
 }
@@ -1836,7 +1928,7 @@ function renderWeatherLocation(e){
     if(weather&&capturedDate){
       ensureEntry(capturedDate);
       entries[capturedDate].weather=weather;
-      await doSaveIndexOnly(capturedDate);
+      saveMetaChange(capturedDate);
       if(currentDate===capturedDate){
         const r=document.getElementById('weather-location-row');
         if(r)renderWLRow(r,weather,entries[capturedDate].location||null,!entries[capturedDate].location);
@@ -1860,7 +1952,7 @@ function renderWeatherLocation(e){
           ensureEntry(capturedDate);
           if(weather)entries[capturedDate].weather=weather;
           if(location)entries[capturedDate].location=location;
-          await doSaveIndexOnly(capturedDate);
+          saveMetaChange(capturedDate);
         }
         if(currentDate===capturedDate){
           const r=document.getElementById('weather-location-row');
@@ -1874,7 +1966,7 @@ function renderWeatherLocation(e){
         if(weather&&capturedDate){
           ensureEntry(capturedDate);
           entries[capturedDate].weather=weather;
-          await doSaveIndexOnly(capturedDate);
+          saveMetaChange(capturedDate);
         }
         if(currentDate===capturedDate){
           const r=document.getElementById('weather-location-row');
@@ -1933,7 +2025,7 @@ function editLocation(){
     wrap.querySelector('.location-edit-hint').style.display='';
     wrap.style.cursor='pointer';
     inp.remove();
-    if(entries[currentDate]){entries[currentDate].location=saved;await doSaveIndexOnly(currentDate);}
+    if(entries[currentDate]){entries[currentDate].location=saved;saveMetaChange(currentDate);}
   };
   inp.addEventListener('blur',confirm);
   inp.addEventListener('keydown',e=>{if(e.key==='Enter')inp.blur();});
@@ -1950,7 +2042,7 @@ function editLocationEmpty(){
   const confirm=async()=>{
     const val=inp.value.trim();
     if(val){
-      if(entries[currentDate]){entries[currentDate].location=val;await doSaveIndexOnly(currentDate);}
+      if(entries[currentDate]){entries[currentDate].location=val;saveMetaChange(currentDate);}
       // 只替換地點元素，不重繪整列（避免天氣消失）
       const locItem=inp.closest('.wl-item');
       if(locItem){
@@ -2057,10 +2149,10 @@ function onInput(){
   autoSaveTimer=setTimeout(()=>{
     flushCurrentToMemory();
     const ds=currentDate;
-    if(conflictState&&conflictState.ds===ds){setSaveStatus('paused');return;}  // v44：衝突未選擇前不存檔
+    if(conflictState&&conflictState.ds===ds){setSaveStatus('paused');if(entries[ds])lsSet(CACHE_PREFIX+ds,entries[ds].content||'');saveIndexCache();return;}  // v44：衝突未選擇前不存雲端；v46：先存本機
     if(isEntryBlank(ds)){setSaveStatus('');return;}  // v45：內容空白不存、不刪（離開這篇時才判斷刪除）
     persistEntry(ds).then(()=>{
-      if(currentDate===ds){setSaveStatus('saved');renderEntryList();renderCal();setTimeout(()=>setSaveStatus(''),2500);}
+      showSaveResult(ds);  // v46
     });
   },1500);
   updateWordCount();
@@ -2129,18 +2221,38 @@ function setSaveStatus(s){const el=document.getElementById('save-status');if(!el
 
 
 // 只更新 index 單筆（天氣、地點等 metadata 異動時用）
-async function doSaveIndexOnly(ds){
-  if(!ds||ds==='null'||!/^\d{4}-\d{2}-\d{2}$/.test(ds)||!entries[ds])return;
-  if(entries[ds]._isNew)return;  // v45：還沒存進雲端的新日記只留在記憶體，第一次存檔時一起寫入
-  await callGAS('writeIndex',{date:ds,entry:buildIndexEntry(ds)});  // v44：保留版本號
+// v46：天氣、地點、心情改動 → 走一般存檔（.md＋index 一起寫），不再只寫 index
+// .md 才是正本：只寫 index 的話，重建索引時這些修改會被還原
+function saveMetaChange(ds){
+  const e=entries[ds];
+  if(!e||e._isNew||e._loadFailed)return;  // 新日記：第一次存檔時一起寫入（v45）
+  if(ds===currentDate){
+    // 內文還在載入：等載入完成再存，否則會用空白內文蓋掉雲端
+    if(document.querySelector('#quill-mount .editor-loading')){e._pendingMeta=true;return;}
+    flushCurrentToMemory();
+    persistEntry(ds);
+    return;
+  }
+  if(e.content){persistEntry(ds);return;}  // 內文在記憶體
+  e._pendingMeta=true;  // 內文不在記憶體：下次打開這篇、內文載入後再存
 }
+// 打開日記、內文載入完成後：補存之前等待中的 metadata 改動
+function flushPendingMeta(ds){
+  const e=entries[ds];
+  if(!e||!e._pendingMeta||e._loadFailed||currentDate!==ds)return;
+  delete e._pendingMeta;
+  flushCurrentToMemory();
+  persistEntry(ds);
+}
+// 舊名稱保留，避免漏改的呼叫
+async function doSaveIndexOnly(ds){saveMetaChange(ds);}
 // doSave：flush DOM → persist 當前篇（autosave 和手動儲存用）
 async function doSave(){
   if(!currentDate||!/^\d{4}-\d{2}-\d{2}$/.test(currentDate))return;
   flushCurrentToMemory();
   const ds=currentDate; // snapshot，避免 await 期間被改掉
   await persistEntry(ds);
-  if(currentDate===ds){setSaveStatus('saved');renderEntryList();renderCal();setTimeout(()=>setSaveStatus(''),2500);}
+  showSaveResult(ds);  // v46
 }
 
 function addTagPrompt(){
@@ -2341,8 +2453,7 @@ async function analyzeMood(){
   if(parsed.mood){
     entries[ds].mood=parsed.mood;
     showMood(parsed.mood,true);
-    // mood 目前只更新 index（寫回 .md 留待 v46 方案 A 收口處理；離開這篇時 isDirty 會判定變動並補寫 .md）
-    if(!entries[ds]._isNew)callGAS('writeIndex',{date:ds,entry:buildIndexEntry(ds)});  // v44：保留版本號；v45：新日記不寫
+    saveMetaChange(ds);  // v46：心情寫回 .md 正本
   }
   if(Array.isArray(parsed.tags)&&parsed.tags.length){
     const ex=entries[ds].tags||[];
@@ -2567,7 +2678,45 @@ function filterByTag(t){
   renderTagsPage();
 }
 
+// v46：標籤改名／刪除 → GAS 直接改寫各篇 .md 的 front matter（updateMetaBatch），每批 50 篇
+let tagBusy=false;
+function showTagProgress(done,total,label){
+  const el=document.getElementById('tag-progress');
+  if(!el)return;
+  el.style.display='block';
+  el.textContent=`正在${label}：${done}／${total} 篇`;
+}
+function hideTagProgress(){const el=document.getElementById('tag-progress');if(el)el.style.display='none';}
+async function applyTagChanges(changes,label){
+  const total=changes.length;
+  const failed=[];
+  if(!total)return {failed};
+  showTagProgress(0,total,label);
+  for(let i=0;i<total;i+=50){
+    const chunk=changes.slice(i,i+50);
+    let res=null;
+    try{res=await callGAS('updateMetaBatch',{items:chunk.map(c=>({date:c.date,meta:{tags:c.tags}}))});}catch(e){res=null;}
+    if(!res||!res.ok||!Array.isArray(res.results)){chunk.forEach(c=>failed.push(c.date));}
+    else res.results.forEach(r=>{
+      if(!r.ok){failed.push(r.date);return;}
+      const e=entries[r.date];
+      if(!e)return;
+      // 內文沒變：本機快取若原本是最新的，就直接換成新版本號，不必重新下載
+      const old=verStr(r.prevVersion);
+      if(verStr(e._cver)===old)e._cver=r.updatedAt;
+      if(lsGet(CACHE_PREFIX+r.date)!==null&&getCacheVer(r.date)===old)lsSet(CVER_PREFIX+r.date,verStr(r.updatedAt));
+      e.updatedAt=r.updatedAt;
+    });
+    showTagProgress(Math.min(i+chunk.length,total),total,label);
+  }
+  saveIndexCache();
+  hideTagProgress();
+  if(failed.length)alert(`有 ${failed.length} 篇沒有更新成功（${failed.slice(0,5).join('、')}${failed.length>5?'…':''}），請檢查網路後重新整理，再操作一次。`);
+  return {failed};
+}
+
 async function renameTag(oldName){
+  if(tagBusy){alert('還在處理上一個標籤，請稍候');return;}
   const newName=prompt('重新命名標籤：', oldName);
   if(!newName||!newName.trim()||newName.trim()===oldName)return;
   const n=newName.trim();
@@ -2577,33 +2726,33 @@ async function renameTag(oldName){
   if(allTags.has(n)){
     if(!confirm(`標籤「${n}」已存在，確定要將「${oldName}」合併進去嗎？`))return;
   }
-  Object.keys(entries).forEach(ds=>{
-    const tags=entries[ds].tags||[];
-    if(tags.includes(oldName)){
-      // 用目標名稱取代，並去重
-      const merged=[...new Set(tags.map(t=>t===oldName?n:t))];
-      entries[ds].tags=merged;
-    }
+  // 先挑出真的含有舊標籤的日記（v46：原本會連「已經有新名稱」的日記也一起重寫）
+  const affected=Object.keys(entries).filter(ds=>(entries[ds].tags||[]).includes(oldName));
+  affected.forEach(ds=>{
+    // 用目標名稱取代，並去重
+    entries[ds].tags=[...new Set((entries[ds].tags||[]).map(t=>t===oldName?n:t))];
   });
-  // 批次更新所有受影響日記的 index
-  const affected=Object.keys(entries).filter(ds=>!entries[ds]._isNew&&((entries[ds].tags||[]).includes(n)||(entries[ds].tags||[]).includes(oldName)));  // v45：新日記不寫 index
-  await Promise.all(affected.map(ds=>callGAS('writeIndex',{date:ds,entry:buildIndexEntry(ds)})));
+  tagBusy=true;
+  try{
+    await applyTagChanges(affected.filter(ds=>!entries[ds]._isNew).map(ds=>({date:ds,tags:entries[ds].tags})),'改名');  // 新日記只改記憶體（v45）
+  }finally{tagBusy=false;}
   renderTagsPage();
 }
 
 async function deleteTag(name){
+  if(tagBusy){alert('還在處理上一個標籤，請稍候');return;}
   if(!confirm(`確定要刪除標籤「${name}」？
 （不會刪除日記本身）`))return;
-  // 修正（v37）：原本用 length>=0 篩選「受影響日記」，這個條件恆為真，
-  // 等於每次刪標籤都會對「全部日記」觸發 writeIndex（曾造成數百筆並發請求）。
-  // 改成：只挑刪除前真的含有這個標籤的日記。
-  const affected=Object.keys(entries).filter(ds=>!entries[ds]._isNew&&(entries[ds].tags||[]).includes(name));  // v45：新日記不寫 index
-  Object.keys(entries).forEach(ds=>{
+  // 修正（v37）：只挑刪除前真的含有這個標籤的日記
+  const affected=Object.keys(entries).filter(ds=>(entries[ds].tags||[]).includes(name));
+  affected.forEach(ds=>{
     entries[ds].tags=(entries[ds].tags||[]).filter(t=>t!==name);
   });
   if(activeFilterTag===name)activeFilterTag=null;
-  // 批次更新受影響日記的 index
-  await Promise.all(affected.map(ds=>callGAS('writeIndex',{date:ds,entry:buildIndexEntry(ds)})));
+  tagBusy=true;
+  try{
+    await applyTagChanges(affected.filter(ds=>!entries[ds]._isNew).map(ds=>({date:ds,tags:entries[ds].tags})),'刪除標籤');
+  }finally{tagBusy=false;}
   renderTagsPage();
 }
 
